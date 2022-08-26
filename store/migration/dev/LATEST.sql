@@ -1,3 +1,4 @@
+-- Debug action.
 -- Type
 CREATE TYPE row_status AS ENUM ('NORMAL', 'ARCHIVED');
 
