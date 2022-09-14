@@ -469,7 +469,7 @@
     "subscribe": "订阅",
     "unsubscribe": "取消订阅",
     "subscriber": "没有订阅者 | 1 个订阅者 | {n} 个订阅者",
-    "apply-to-other-stages": "@:{'common.apply'}到其他@:{'common.stage'}",
+    "apply-to-other-tasks": "@:{'common.apply'}到其他@:{'common.task'}",
     "add-sql-statement": "添加 SQL @:{'common.statement'}…",
     "optional-add-sql-statement": "（可选）添加 SQL @:{'common.statement'}…",
     "edit-description": "编辑描述",
@@ -1065,8 +1065,8 @@
       "view-vcs-member": "在 VCS 中查看成员",
       "switch-role-provider-to-bytebase-success-prompt": "成功关闭了 VCS 项目成员同步",
       "schema-change-type": "Schema 变更类型",
-      "select-schema-migration-type-ddl": "通过指定过程 DDL 变更到期望的 Schema",
-      "select-schema-migration-type-sdl": "直接指定期望达到的 Schema",
+      "select-schema-change-type-ddl": "通过指定过程 DDL 变更到期望的 Schema",
+      "select-schema-change-type-sdl": "直接指定期望达到的 Schema",
       "schema-path-template-sdl-description": "Schema 定义文件应该包括了数据库 Schema 所在的状态。Bytebase 将会为在 Schema 状态和实际数据库之间发现的任何差异创建新的迁移。"
     },
     "mode": {
@@ -1470,7 +1470,7 @@
       "click-new-project": "点击\"创建项目\"按钮",
       "click-new-database": "点击\"创建数据库\"按钮",
       "click-approve": "点击\"批准\"按钮来执行这个工单",
-      "wait-issue-finished": "...等待工单执行完成",
+      "wait-issue-finished": "等待工单执行完成...",
       "back-to-home": "回到主页",
       "finished-dialog": {
         "you-have-done": "你已经完成了:",
