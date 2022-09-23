@@ -14,7 +14,7 @@ import (
 )
 
 // Type is the type of a VCS.
-//nolint
+// nolint
 type Type string
 
 const (
@@ -128,6 +128,20 @@ type Repository struct {
 	WebURL   string `json:"webUrl"`
 }
 
+// BranchInfo is the API message for repository branch.
+type BranchInfo struct {
+	Name         string
+	LastCommitID string
+}
+
+// PullRequestCreate is the API message to create pull request in repository.
+type PullRequestCreate struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+	Head  string `json:"head"`
+	Base  string `json:"base"`
+}
+
 // Provider is the interface for VCS provider.
 type Provider interface {
 	// Returns the API URL for a given VCS instance URL
@@ -220,6 +234,12 @@ type Provider interface {
 	PatchWebhook(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, webhookID string, payload []byte) error
 	// Deletes a webhook.
 	DeleteWebhook(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, webhookID string) error
+	// GetBranch gets the given branch in the repository.
+	GetBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, branchName string) (*BranchInfo, error)
+	// CreateBranch creates the branch in the repository.
+	CreateBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, branch *BranchInfo) error
+	// CreatePullRequest creates the pull request in the repository.
+	CreatePullRequest(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, pullRequestCreate *PullRequestCreate) error
 }
 
 var (

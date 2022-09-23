@@ -767,6 +767,21 @@ func (p *Provider) ReadFileContent(ctx context.Context, oauthCtx common.OauthCon
 	return file.Content, nil
 }
 
+// GetBranch gets the given branch in the repository.
+func (*Provider) GetBranch(_ context.Context, _ common.OauthContext, _, _, _ string) (*vcs.BranchInfo, error) {
+	return nil, errors.Errorf("get branch is not implemented for GitLab")
+}
+
+// CreateBranch creates the branch in the repository.
+func (*Provider) CreateBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, branch *vcs.BranchInfo) error {
+	return errors.Errorf("create branch is not implemented for GitLab")
+}
+
+// CreatePullRequest creates the pull request in the repository.
+func (*Provider) CreatePullRequest(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, pullRequestCreate *vcs.PullRequestCreate) error {
+	return errors.Errorf("create pull request is not implemented for GitLab")
+}
+
 // CreateWebhook creates a webhook in the repository with given payload.
 //
 // Docs: https://docs.gitlab.com/ee/api/projects.html#add-project-hook

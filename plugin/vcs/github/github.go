@@ -658,7 +658,7 @@ func (p *Provider) CreateFile(ctx context.Context, oauthCtx common.OauthContext,
 	}
 
 	url := fmt.Sprintf("%s/repos/%s/contents/%s", p.APIURL(instanceURL), repositoryID, url.QueryEscape(filePath))
-	code, _, err := oauth.Put(
+	code, resp, err := oauth.Put(
 		ctx,
 		p.client,
 		url,
@@ -679,12 +679,12 @@ func (p *Provider) CreateFile(ctx context.Context, oauthCtx common.OauthContext,
 	}
 
 	if code == http.StatusNotFound {
-		return common.Errorf(common.NotFound, "failed to create/update file through URL %s", url)
+		return common.Errorf(common.NotFound, "failed to create/update file through URL %s, resource not found", url)
 	} else if code >= 300 {
 		return errors.Errorf("failed to create/update file through URL %s, status code: %d, body: %s",
 			url,
 			code,
-			body,
+			resp,
 		)
 	}
 	return nil
@@ -777,6 +777,161 @@ func (p *Provider) readFile(ctx context.Context, oauthCtx common.OauthContext, i
 		file.Content = string(decodedContent)
 	}
 	return &file, nil
+}
+
+type referenceCreate struct {
+	Ref string `json:"ref"`
+	SHA string `json:"sha"`
+}
+
+type reference struct {
+	Ref    string          `json:"ref"`
+	Object referenceObject `json:"object"`
+}
+
+type referenceObject struct {
+	SHA string `json:"sha"`
+}
+
+// GetBranch gets the given branch in the repository.
+//
+// Docs: https://docs.github.com/en/rest/git/refs#get-a-reference
+func (p *Provider) GetBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, branchName string) (*vcs.BranchInfo, error) {
+	url := fmt.Sprintf("%s/repos/%s/git/ref/heads/%s", p.APIURL(instanceURL), repositoryID, branchName)
+	code, body, err := oauth.Get(
+		ctx,
+		p.client,
+		url,
+		&oauthCtx.AccessToken,
+		tokenRefresher(
+			instanceURL,
+			oauthContext{
+				ClientID:     oauthCtx.ClientID,
+				ClientSecret: oauthCtx.ClientSecret,
+				RefreshToken: oauthCtx.RefreshToken,
+			},
+			oauthCtx.Refresher,
+		),
+	)
+	if err != nil {
+		return nil, errors.Wrapf(err, "GET %s", url)
+	}
+
+	if code == http.StatusNotFound {
+		return nil, common.Errorf(common.NotFound, "failed to create branch from URL %s", url)
+	} else if code >= 300 {
+		return nil, errors.Errorf("failed to create branch from URL %s, status code: %d, body: %s",
+			url,
+			code,
+			body,
+		)
+	}
+
+	res := new(reference)
+	if err := json.Unmarshal([]byte(body), res); err != nil {
+		return nil, err
+	}
+
+	name, err := vcs.Branch(res.Ref)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vcs.BranchInfo{
+		Name:         name,
+		LastCommitID: res.Object.SHA,
+	}, nil
+}
+
+// CreateBranch creates the branch in the repository.
+//
+// Docs: https://docs.github.com/en/rest/git/refs#create-a-reference
+func (p *Provider) CreateBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, branch *vcs.BranchInfo) error {
+	body, err := json.Marshal(
+		referenceCreate{
+			Ref: fmt.Sprintf("refs/heads/%s", branch.Name),
+			SHA: branch.LastCommitID,
+		},
+	)
+	if err != nil {
+		return errors.Wrap(err, "marshal branch create")
+	}
+
+	url := fmt.Sprintf("%s/repos/%s/git/refs", p.APIURL(instanceURL), repositoryID)
+	code, _, err := oauth.Post(
+		ctx,
+		p.client,
+		url,
+		&oauthCtx.AccessToken,
+		bytes.NewReader(body),
+		tokenRefresher(
+			instanceURL,
+			oauthContext{
+				ClientID:     oauthCtx.ClientID,
+				ClientSecret: oauthCtx.ClientSecret,
+				RefreshToken: oauthCtx.RefreshToken,
+			},
+			oauthCtx.Refresher,
+		),
+	)
+	if err != nil {
+		return errors.Wrapf(err, "GET %s", url)
+	}
+
+	if code == http.StatusNotFound {
+		return common.Errorf(common.NotFound, "failed to create branch from URL %s", url)
+	} else if code >= 300 {
+		return errors.Errorf("failed to create branch from URL %s, status code: %d, body: %s",
+			url,
+			code,
+			body,
+		)
+	}
+
+	return nil
+}
+
+// CreatePullRequest creates the pull request in the repository.
+//
+// Docs: https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request
+func (p *Provider) CreatePullRequest(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, pullRequestCreate *vcs.PullRequestCreate) error {
+	body, err := json.Marshal(pullRequestCreate)
+	if err != nil {
+		return errors.Wrap(err, "marshal pull request create")
+	}
+
+	url := fmt.Sprintf("%s/repos/%s/pulls", p.APIURL(instanceURL), repositoryID)
+	code, _, err := oauth.Post(
+		ctx,
+		p.client,
+		url,
+		&oauthCtx.AccessToken,
+		bytes.NewReader(body),
+		tokenRefresher(
+			instanceURL,
+			oauthContext{
+				ClientID:     oauthCtx.ClientID,
+				ClientSecret: oauthCtx.ClientSecret,
+				RefreshToken: oauthCtx.RefreshToken,
+			},
+			oauthCtx.Refresher,
+		),
+	)
+	if err != nil {
+		return errors.Wrapf(err, "GET %s", url)
+	}
+
+	if code == http.StatusNotFound {
+		return common.Errorf(common.NotFound, "failed to create pull request from URL %s", url)
+	} else if code >= 300 {
+		return errors.Errorf("failed to create pull request from URL %s, status code: %d, body: %s",
+			url,
+			code,
+			body,
+		)
+	}
+
+	return nil
 }
 
 // CreateWebhook creates a webhook in the repository with given payload.
