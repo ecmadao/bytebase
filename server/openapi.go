@@ -97,7 +97,15 @@ func (s *Server) registerOpenAPIRoutes(g *echo.Group) {
 				zap.String("file", fileEscaped),
 				zap.String("base_directory", repo.BaseDirectory),
 			)
-			return c.JSON(http.StatusOK, []advisor.Advice{})
+			return c.JSON(http.StatusOK, []advisor.Advice{
+				{
+					Status:  advisor.Warn,
+					Code:    advisor.Unsupported,
+					Title:   "Ignored file outside the base directory",
+					Line:    1,
+					Content: fmt.Sprintf("This SQL file is outside the base directory \"%s\" configured in the VCS workflow. Skip the SQL check.", repo.BaseDirectory),
+				},
+			})
 		}
 
 		migrationInfo, err := db.ParseMigrationInfo(fileEscaped, path.Join(repo.BaseDirectory, repo.FilePathTemplate))
@@ -107,15 +115,35 @@ func (s *Server) registerOpenAPIRoutes(g *echo.Group) {
 				zap.String("file", fileEscaped),
 				zap.Error(err),
 			)
-			return echo.NewHTTPError(http.StatusOK, []advisor.Advice{})
+			return echo.NewHTTPError(http.StatusOK, []advisor.Advice{
+				{
+					Status:  advisor.Warn,
+					Code:    advisor.Unsupported,
+					Title:   "Failed to parse migration info",
+					Line:    1,
+					Content: fmt.Sprintf("Failed to parse migration info for this SQL file. Error: %v", err),
+				},
+			})
 		}
-		fmt.Printf("db name: %s, env name: %s\n", migrationInfo.Database, migrationInfo.Environment)
+		log.Debug(
+			"Parse the migration info",
+			zap.String("file", request.FilePath),
+			zap.String("database", migrationInfo.Database),
+			zap.String("environment", migrationInfo.Environment),
+		)
 		if migrationInfo.Database == "" {
 			return c.JSON(http.StatusOK, []advisor.Advice{})
 		}
 
 		databases, err := s.findProjectDatabases(ctx, repo.ProjectID, repo.Project.TenantMode, migrationInfo.Database, migrationInfo.Environment)
 		if err != nil {
+			log.Debug(
+				"Failed to list databse migration info",
+				zap.Int("project", repo.ProjectID),
+				zap.String("database", migrationInfo.Database),
+				zap.String("environment", migrationInfo.Environment),
+				zap.Error(err),
+			)
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to list databse migration info").SetInternal(err)
 		}
 
@@ -127,14 +155,13 @@ func (s *Server) registerOpenAPIRoutes(g *echo.Group) {
 			policy, err := s.store.GetNormalSQLReviewPolicy(ctx, &api.PolicyFind{EnvironmentID: &database.Instance.EnvironmentID})
 			if err != nil {
 				if e, ok := err.(*common.Error); ok && e.Code == common.NotFound {
-					log.Debug("Cannot found SQL review policy in environment", zap.Int("env", database.Instance.EnvironmentID))
+					log.Debug("Cannot found SQL review policy in environment", zap.Int("Environment", database.Instance.EnvironmentID), zap.Error(err))
 					continue
 				}
 
-				return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to get SQL review policy in environment: %v", database.Instance.EnvironmentID))
+				return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to get SQL review policy in environment: %v", database.Instance.EnvironmentID)).SetInternal(err)
 			}
 
-			// database.Instance.Engine
 			dbType, err := advisorDB.ConvertToAdvisorDBType(string(database.Instance.Engine))
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to convert database engine type %v to advisor db type", database.Instance.Engine)).SetInternal(err)
