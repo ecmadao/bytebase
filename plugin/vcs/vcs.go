@@ -234,6 +234,8 @@ type Provider interface {
 	PatchWebhook(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, webhookID string, payload []byte) error
 	// Deletes a webhook.
 	DeleteWebhook(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, webhookID string) error
+	// GetSQLReviewCIFilePath returns the file path for SQL review CI in repository.
+	GetSQLReviewCIFilePath() string
 	// GetBranch gets the given branch in the repository.
 	GetBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID, branchName string) (*BranchInfo, error)
 	// CreateBranch creates the branch in the repository.

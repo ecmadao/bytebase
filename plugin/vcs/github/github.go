@@ -779,18 +779,23 @@ func (p *Provider) readFile(ctx context.Context, oauthCtx common.OauthContext, i
 	return &file, nil
 }
 
-type referenceCreate struct {
+type gitHubBranchCreate struct {
 	Ref string `json:"ref"`
 	SHA string `json:"sha"`
 }
 
-type reference struct {
+type gitHubBranch struct {
 	Ref    string          `json:"ref"`
 	Object referenceObject `json:"object"`
 }
 
 type referenceObject struct {
 	SHA string `json:"sha"`
+}
+
+// GetSQLReviewCIFilePath returns the SQL review file path in GitHub action.
+func (*Provider) GetSQLReviewCIFilePath() string {
+	return ".github/workflows/sql-review.yml"
 }
 
 // GetBranch gets the given branch in the repository.
@@ -827,7 +832,7 @@ func (p *Provider) GetBranch(ctx context.Context, oauthCtx common.OauthContext, 
 		)
 	}
 
-	res := new(reference)
+	res := new(gitHubBranch)
 	if err := json.Unmarshal([]byte(body), res); err != nil {
 		return nil, err
 	}
@@ -848,7 +853,7 @@ func (p *Provider) GetBranch(ctx context.Context, oauthCtx common.OauthContext, 
 // Docs: https://docs.github.com/en/rest/git/refs#create-a-reference
 func (p *Provider) CreateBranch(ctx context.Context, oauthCtx common.OauthContext, instanceURL, repositoryID string, branch *vcs.BranchInfo) error {
 	body, err := json.Marshal(
-		referenceCreate{
+		gitHubBranchCreate{
 			Ref: fmt.Sprintf("refs/heads/%s", branch.Name),
 			SHA: branch.LastCommitID,
 		},
@@ -858,7 +863,7 @@ func (p *Provider) CreateBranch(ctx context.Context, oauthCtx common.OauthContex
 	}
 
 	url := fmt.Sprintf("%s/repos/%s/git/refs", p.APIURL(instanceURL), repositoryID)
-	code, _, err := oauth.Post(
+	code, resp, err := oauth.Post(
 		ctx,
 		p.client,
 		url,
@@ -884,7 +889,7 @@ func (p *Provider) CreateBranch(ctx context.Context, oauthCtx common.OauthContex
 		return errors.Errorf("failed to create branch from URL %s, status code: %d, body: %s",
 			url,
 			code,
-			body,
+			resp,
 		)
 	}
 
@@ -901,7 +906,7 @@ func (p *Provider) CreatePullRequest(ctx context.Context, oauthCtx common.OauthC
 	}
 
 	url := fmt.Sprintf("%s/repos/%s/pulls", p.APIURL(instanceURL), repositoryID)
-	code, _, err := oauth.Post(
+	code, resp, err := oauth.Post(
 		ctx,
 		p.client,
 		url,
@@ -927,7 +932,7 @@ func (p *Provider) CreatePullRequest(ctx context.Context, oauthCtx common.OauthC
 		return errors.Errorf("failed to create pull request from URL %s, status code: %d, body: %s",
 			url,
 			code,
-			body,
+			resp,
 		)
 	}
 

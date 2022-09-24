@@ -299,7 +299,7 @@ func (s *Server) registerProjectRoutes(g *echo.Group) {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to link project repository").SetInternal(err)
 		}
 
-		if err := s.createVCSSQLReviewCI(ctx, repository); err != nil {
+		if err := s.upsertVCSSQLReviewCI(ctx, repository); err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create SQL review CI").SetInternal(err)
 		}
 
@@ -418,6 +418,12 @@ func (s *Server) registerProjectRoutes(g *echo.Group) {
 		updatedRepo, err := s.store.PatchRepository(ctx, repoPatch)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Failed to update repository for project ID: %d", projectID)).SetInternal(err)
+		}
+
+		if updatedRepo.BaseDirectory != repo.BaseDirectory {
+			if err := s.upsertVCSSQLReviewCI(ctx, updatedRepo); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update SQL review CI").SetInternal(err)
+			}
 		}
 
 		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
@@ -617,7 +623,7 @@ func (s *Server) createVCSWebhook(ctx context.Context, vcsType vcsPlugin.Type, w
 	return webhookID, nil
 }
 
-func (s *Server) createVCSSQLReviewCI(ctx context.Context, repository *api.Repository) error {
+func (s *Server) upsertVCSSQLReviewCI(ctx context.Context, repository *api.Repository) error {
 	branch, err := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).GetBranch(
 		ctx,
 		common.OauthContext{
@@ -657,8 +663,7 @@ func (s *Server) createVCSSQLReviewCI(ctx context.Context, repository *api.Repos
 	}
 
 	sqlReviewEndpoint := fmt.Sprintf("%s/v1/project/%d/sql-review", s.profile.ExternalURL, repository.ProjectID)
-	// TODO: different for gitlab
-	actionFilePath := ".github/workflows/sql-review.yml"
+	actionFilePath := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).GetSQLReviewCIFilePath()
 
 	fileMeta, err := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).ReadFileMeta(
 		ctx,
