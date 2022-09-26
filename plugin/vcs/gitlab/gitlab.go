@@ -784,9 +784,15 @@ type gitLabMergeRequestCreate struct {
 	TargetBranch string `json:"target_branch"`
 }
 
-// GetSQLReviewCIFilePath returns the SQL review file path in GitLab CI.
-func (*Provider) GetSQLReviewCIFilePath() string {
-	return ""
+// GetSQLReviewCIFile returns the SQL review file path and content in GitLab action.
+func (*Provider) GetSQLReviewCIFile(_, _ string) (string, string) {
+	// gitlab ci config: https://docs.gitlab.com/ee/ci/yaml/gitlab_ci_yaml.html
+	// triggered in merge request: https://docs.gitlab.com/ee/ci/pipelines/merge_request_pipelines.html
+	// get changed files: https://forum.gitlab.com/t/ci-cd-pipeline-get-list-of-changed-files/26847
+
+	// We also need to update the .gitlab-ci.yml to include the sql review ci file
+	// https://ithelp.ithome.com.tw/articles/10246691
+	return ".gitlab/sql-review.yml", ""
 }
 
 // GetBranch gets the given branch in the repository.

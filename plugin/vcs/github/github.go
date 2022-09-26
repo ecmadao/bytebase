@@ -14,12 +14,17 @@ import (
 	"strings"
 	"time"
 
+	_ "embed"
+
 	"github.com/pkg/errors"
 
 	"github.com/bytebase/bytebase/common"
 	"github.com/bytebase/bytebase/plugin/vcs"
 	"github.com/bytebase/bytebase/plugin/vcs/internal/oauth"
 )
+
+//go:embed sql-review-action.yml
+var sqlReviewAction string
 
 const (
 	// githubComURL is URL for the GitHub.com.
@@ -793,9 +798,9 @@ type referenceObject struct {
 	SHA string `json:"sha"`
 }
 
-// GetSQLReviewCIFilePath returns the SQL review file path in GitHub action.
-func (*Provider) GetSQLReviewCIFilePath() string {
-	return ".github/workflows/sql-review.yml"
+// GetSQLReviewCIFile returns the SQL review file path and content in GitHub action.
+func (*Provider) GetSQLReviewCIFile(endpoint, fileFilter string) (string, string) {
+	return ".github/workflows/sql-review.yml", fmt.Sprintf(sqlReviewAction, endpoint, fileFilter)
 }
 
 // GetBranch gets the given branch in the repository.

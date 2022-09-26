@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	_ "embed"
-
 	"github.com/google/jsonapi"
 	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
@@ -24,9 +22,6 @@ import (
 	"github.com/bytebase/bytebase/plugin/vcs/github"
 	"github.com/bytebase/bytebase/plugin/vcs/gitlab"
 )
-
-//go:embed sql-review-action.yml
-var sqlReviewAction string
 
 func (s *Server) registerProjectRoutes(g *echo.Group) {
 	g.POST("/project", func(c echo.Context) error {
@@ -299,8 +294,10 @@ func (s *Server) registerProjectRoutes(g *echo.Group) {
 			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to link project repository").SetInternal(err)
 		}
 
-		if err := s.upsertVCSSQLReviewCI(ctx, repository); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create SQL review CI").SetInternal(err)
+		if vcs.Type == vcsPlugin.GitHubCom {
+			if err := s.upsertVCSSQLReviewCI(ctx, repository); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create SQL review CI").SetInternal(err)
+			}
 		}
 
 		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
@@ -663,7 +660,10 @@ func (s *Server) upsertVCSSQLReviewCI(ctx context.Context, repository *api.Repos
 	}
 
 	sqlReviewEndpoint := fmt.Sprintf("%s/v1/project/%d/sql-review", s.profile.ExternalURL, repository.ProjectID)
-	actionFilePath := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).GetSQLReviewCIFilePath()
+	actionFilePath, actionFileContent := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).GetSQLReviewCIFile(
+		sqlReviewEndpoint, fmt.Sprintf(`^%s/.*\.sql$`, repository.BaseDirectory),
+	)
+	actionFileExisted := true
 
 	fileMeta, err := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).ReadFileMeta(
 		ctx,
@@ -680,37 +680,63 @@ func (s *Server) upsertVCSSQLReviewCI(ctx context.Context, repository *api.Repos
 		branch.Name,
 	)
 	if err != nil {
-		log.Debug("Failed to get file meta", zap.String("file", actionFilePath), zap.String("last_commit", branch.LastCommitID), zap.Error(err))
+		log.Debug(
+			"Failed to get file meta",
+			zap.String("file", actionFilePath),
+			zap.String("last_commit", branch.LastCommitID),
+			zap.Int("code", common.ErrorCode(err).Int()),
+			zap.Error(err),
+		)
+		if common.ErrorCode(err) == common.NotFound {
+			actionFileExisted = false
+		} else {
+			return err
+		}
 	}
 
-	commitMessage := "chore: add SQL review action"
-	fileLastCommitID := ""
-	if fileMeta != nil {
-		commitMessage = "chore: update SQL review action"
-		fileLastCommitID = fileMeta.LastCommitID
-	}
-	log.Debug(fmt.Sprintf("file: %s, last commit: %s", actionFilePath, fileLastCommitID))
-
-	if err := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).CreateFile(
-		ctx,
-		common.OauthContext{
-			ClientID:     repository.VCS.ApplicationID,
-			ClientSecret: repository.VCS.Secret,
-			AccessToken:  repository.AccessToken,
-			RefreshToken: repository.RefreshToken,
-			Refresher:    s.refreshToken(ctx, repository.WebURL),
-		},
-		repository.VCS.InstanceURL,
-		repository.ExternalID,
-		actionFilePath,
-		vcsPlugin.FileCommitCreate{
-			Branch:        branchCreate.Name,
-			CommitMessage: commitMessage,
-			Content:       fmt.Sprintf(sqlReviewAction, sqlReviewEndpoint, fmt.Sprintf(`^%s/.*\.sql$`, repository.BaseDirectory)),
-			LastCommitID:  fileLastCommitID,
-		},
-	); err != nil {
-		return err
+	if actionFileExisted {
+		if err := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).OverwriteFile(
+			ctx,
+			common.OauthContext{
+				ClientID:     repository.VCS.ApplicationID,
+				ClientSecret: repository.VCS.Secret,
+				AccessToken:  repository.AccessToken,
+				RefreshToken: repository.RefreshToken,
+				Refresher:    s.refreshToken(ctx, repository.WebURL),
+			},
+			repository.VCS.InstanceURL,
+			repository.ExternalID,
+			actionFilePath,
+			vcsPlugin.FileCommitCreate{
+				Branch:        branchCreate.Name,
+				CommitMessage: "chore: update SQL review action",
+				Content:       actionFileContent,
+				LastCommitID:  fileMeta.LastCommitID,
+			},
+		); err != nil {
+			return err
+		}
+	} else {
+		if err := vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).CreateFile(
+			ctx,
+			common.OauthContext{
+				ClientID:     repository.VCS.ApplicationID,
+				ClientSecret: repository.VCS.Secret,
+				AccessToken:  repository.AccessToken,
+				RefreshToken: repository.RefreshToken,
+				Refresher:    s.refreshToken(ctx, repository.WebURL),
+			},
+			repository.VCS.InstanceURL,
+			repository.ExternalID,
+			actionFilePath,
+			vcsPlugin.FileCommitCreate{
+				Branch:        branchCreate.Name,
+				CommitMessage: "chore: add SQL review action",
+				Content:       actionFileContent,
+			},
+		); err != nil {
+			return err
+		}
 	}
 
 	return vcsPlugin.Get(repository.VCS.Type, vcsPlugin.ProviderConfig{}).CreatePullRequest(
@@ -725,7 +751,7 @@ func (s *Server) upsertVCSSQLReviewCI(ctx context.Context, repository *api.Repos
 		repository.VCS.InstanceURL,
 		repository.ExternalID,
 		&vcsPlugin.PullRequestCreate{
-			Title: commitMessage,
+			Title: "chore: update SQL review CI",
 			Body:  "This pull request is auto-generated by Bytebase",
 			Head:  branchCreate.Name,
 			Base:  repository.BranchFilter,

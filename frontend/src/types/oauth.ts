@@ -56,6 +56,7 @@ export function openWindowForOAuth(
     );
   }
   // GITLAB_SELF_HOST
+  // GitLab OAuth App scopes: https://docs.gitlab.com/ee/integration/oauth_provider.html#authorized-applications
   return window.open(
     `${endpoint}?client_id=${applicationId}&redirect_uri=${encodeURIComponent(
       redirectUrl()
