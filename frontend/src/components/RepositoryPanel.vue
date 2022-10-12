@@ -115,6 +115,26 @@
     </div>
   </BBModal>
   <BBModal
+    v-if="state.showLoadingSQLReviewPRModal"
+    class="relative overflow-hidden"
+    :show-close="false"
+    :esc-closable="false"
+    :title="$t('repository.sql-review-ci-setup')"
+  >
+    <div
+      class="whitespace-pre-wrap max-w-[32rem] flex justify-start items-start gap-x-2"
+    >
+      <BBSpin class="mt-1" />
+      {{
+        $t("repository.sql-review-ci-loading-modal", {
+          pr: repository.vcs.type.startsWith("GITLAB")
+            ? $t("repository.merge-request")
+            : $t("repository.pull-request"),
+        })
+      }}
+    </div>
+  </BBModal>
+  <BBModal
     v-if="state.showRemoveSQLReviewCIModal"
     class="relative overflow-hidden"
     :title="$t('repository.sql-review-ci-remove')"
@@ -170,6 +190,7 @@ interface LocalState {
   schemaChangeType: SchemaChangeType;
   showFeatureModal: boolean;
   showSetupSQLReviewCIModal: boolean;
+  showLoadingSQLReviewPRModal: boolean;
   showRemoveSQLReviewCIModal: boolean;
   sqlReviewCIPullRequestURL: string;
 }
@@ -207,6 +228,7 @@ export default defineComponent({
       schemaChangeType: props.project.schemaChangeType,
       showFeatureModal: false,
       showSetupSQLReviewCIModal: false,
+      showLoadingSQLReviewPRModal: false,
       showRemoveSQLReviewCIModal: false,
       sqlReviewCIPullRequestURL: "",
     });
@@ -285,6 +307,13 @@ export default defineComponent({
         return;
       }
 
+      if (
+        !props.repository.enableSQLReviewCI &&
+        state.repositoryConfig.enableSQLReviewCI
+      ) {
+        state.showLoadingSQLReviewPRModal = true;
+      }
+
       const repositoryPatch: RepositoryPatch = {};
       if (
         props.repository.branchFilter != state.repositoryConfig.branchFilter
@@ -349,7 +378,9 @@ export default defineComponent({
       if (updatedRepository.sqlReviewCIPullRequestURL) {
         state.sqlReviewCIPullRequestURL =
           updatedRepository.sqlReviewCIPullRequestURL;
+        state.showLoadingSQLReviewPRModal = false;
         state.showSetupSQLReviewCIModal = true;
+        window.open(updatedRepository.sqlReviewCIPullRequestURL, "_blank");
       } else if (removeSQLReview) {
         state.showRemoveSQLReviewCIModal = true;
       }
