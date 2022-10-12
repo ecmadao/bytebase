@@ -252,15 +252,14 @@ export default defineComponent({
     const restoreToUIWorkflowType = () => {
       const removeSQLReview = removeSQLReviewCI.value;
       repositoryStore.deleteRepositoryByProjectId(props.project.id).then(() => {
+        if (removeSQLReview) {
+          state.showRemoveSQLReviewCIModal = true;
+        }
         pushNotification({
           module: "bytebase",
           style: "SUCCESS",
           title: t("repository.restore-ui-workflow-success"),
         });
-
-        if (removeSQLReview) {
-          state.showRemoveSQLReviewCIModal = true;
-        }
       });
     };
 

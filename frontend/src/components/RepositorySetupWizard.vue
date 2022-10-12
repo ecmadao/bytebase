@@ -50,7 +50,7 @@
       v-if="state.showSetupSQLReviewCIModal"
       class="relative overflow-hidden"
       :title="$t('repository.sql-review-ci-setup')"
-      @close="state.showSetupSQLReviewCIModal = false"
+      @close="closeSetupSQLReviewModal"
     >
       <div class="space-y-4 max-w-[32rem]">
         <div class="whitespace-pre-wrap">
@@ -260,7 +260,6 @@ export default defineComponent({
           state.showSetupSQLReviewCIModal = true;
         }
         allowFinishCallback();
-        emit("finish");
       };
 
       if (props.create) {
@@ -282,6 +281,11 @@ export default defineComponent({
             createFunc();
           });
       }
+    };
+
+    const closeSetupSQLReviewModal = () => {
+      state.showSetupSQLReviewCIModal = false;
+      emit("finish");
     };
 
     const cancel = () => {
@@ -322,6 +326,7 @@ export default defineComponent({
       setVCS,
       setToken,
       setRepository,
+      closeSetupSQLReviewModal,
     };
   },
 });
