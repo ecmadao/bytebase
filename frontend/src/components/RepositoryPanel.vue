@@ -88,7 +88,13 @@
   >
     <div class="space-y-4 max-w-[32rem]">
       <div class="whitespace-pre-wrap">
-        {{ $t("repository.sql-review-ci-setup-modal") }}
+        {{
+          $t("repository.sql-review-ci-setup-modal", {
+            pr: repository.vcs.type.startsWith("GITLAB")
+              ? $t("repository.merge-request")
+              : $t("repository.pull-request"),
+          })
+        }}
       </div>
 
       <div class="flex justify-end pt-4 gap-x-2">
@@ -97,7 +103,13 @@
           :href="state.sqlReviewCIPullRequestURL"
           target="_blank"
         >
-          {{ $t("repository.sql-review-ci-setup-pr") }}
+          {{
+            $t("repository.sql-review-ci-setup-pr", {
+              pr: repository.vcs.type.startsWith("GITLAB")
+                ? $t("repository.merge-request")
+                : $t("repository.pull-request"),
+            })
+          }}
         </a>
       </div>
     </div>
