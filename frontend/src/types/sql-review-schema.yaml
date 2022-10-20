@@ -103,6 +103,16 @@ ruleList:
       - MYSQL
       - TIDB
     componentList: []
+  - type: statement.affected-row-limit
+    category: STATEMENT
+    engineList:
+      - MYSQL
+      - TIDB
+    componentList:
+      - key: number
+        payload:
+          type: NUMBER
+          default: 5
   - type: statement.insert.row-limit
     category: STATEMENT
     engineList:

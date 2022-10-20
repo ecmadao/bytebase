@@ -273,6 +273,15 @@
         }
       }
     },
+    "statement-affected-row-limit": {
+      "title": "被影响的行数限制",
+      "description": "限制删除/更新语句所影响的数据数量。",
+      "component": {
+        "number": {
+          "title": "最大影响数"
+        }
+      }
+    },
     "schema-backward-compatibility": {
       "title": "向后兼容",
       "description": "MySQL 和 TiDB 支持检测 schema 变更是否向后兼容。"

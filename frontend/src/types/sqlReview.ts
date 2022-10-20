@@ -126,6 +126,7 @@ export type RuleType =
   | "statement.insert.must-specify-column"
   | "statement.insert.disallow-order-by-rand"
   | "statement.insert.row-limit"
+  | "statement.affected-row-limit"
   | "schema.backward-compatibility"
   | "database.drop-empty-database"
   | "system.charset.allowlist"

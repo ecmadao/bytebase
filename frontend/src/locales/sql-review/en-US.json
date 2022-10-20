@@ -272,6 +272,15 @@
         }
       }
     },
+    "statement-affected-row-limit": {
+      "title": "Affected row limit",
+      "description": "Limit the maximum affected row amount for update/delete statement.",
+      "component": {
+        "number": {
+          "title": "Maximum affected rows"
+        }
+      }
+    },
     "schema-backward-compatibility": {
       "title": "Backward compatibility",
       "description": "MySQL and TiDB support checking whether the schema change is backward compatible."

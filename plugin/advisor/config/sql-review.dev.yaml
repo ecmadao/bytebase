@@ -39,6 +39,10 @@ ruleList:
     level: WARNING
     payload:
       number: 5
+  - type: statement.affected-row-limit
+    level: WARNING
+    payload:
+      number: 5
   - type: naming.table
     level: WARNING
     payload:
