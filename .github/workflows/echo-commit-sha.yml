@@ -11,6 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Echo GITHUB_SHA
-        run: echo "{{ GITHUB_SHA }}"
+        run: echo "GITHUB_SHA:${{ GITHUB_SHA }}"
       - name: Echo env.GITHUB_SHA
-        run: echo "{{ env.GITHUB_SHA }}"
+        run: echo "env.GITHUB_SHA:${{ env.GITHUB_SHA }}"
