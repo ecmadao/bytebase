@@ -36,7 +36,7 @@ jobs:
           build-args: |
             RELEASE=release
             VERSION_SUFFIX=-release-ci
-            GIT_COMMIT=${{ env.GITHUB_SHA }}
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
             BUILD_TIME=${{ env.BUILD_TIME }}
             BUILD_USER=${{ env.BUILD_USER }}
       - name: Image digest

@@ -327,7 +327,7 @@ func NewServer(ctx context.Context, profile config.Profile) (*Server, error) {
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			defer func() {
-				if !common.HasPrefixes(c.Request().URL.Path, "/healthz", "/v1/actuator") {
+				if common.HasPrefixes(c.Request().URL.Path, "/api", "/v1") && !common.HasPrefixes(c.Request().URL.Path, "/v1/actuator") {
 					s.profile.LastActiveTs = time.Now().Unix()
 				}
 			}()
