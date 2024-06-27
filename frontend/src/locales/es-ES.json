@@ -2785,6 +2785,7 @@
         "attach-resource-label": "Aplicar la política de revisión al recurso seleccionado. Un recurso sólo puede vincular una política. La base de datos utilizará la política de revisión de SQL adjunta al proyecto; de lo contrario, recurrirá a la política de entorno.",
         "attach-resource-info-environment": "La política de revisión de SQL afectará a todas las bases de datos que pertenecen al entorno seleccionado.",
         "attach-resource-info-project": "La política de revisión de SQL afectará a todas las bases de datos que pertenecen al proyecto seleccionado. Se ignorará la política de revisión de SQL para el entorno.",
+        "attach-resource-info-database": "La política de revisión de SQL afectará a todas las bases de datos que pertenezcan a las bases de datos seleccionadas. Se ignorará la política de revisión de SQL para el proyecto o entorno.",
         "choose-template": "Elegir plantilla"
       },
       "configure-rule": {

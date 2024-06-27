@@ -60,7 +60,6 @@
           v-for="resource in reviewPolicy.resources"
           :key="resource"
           :can-remove="false"
-          :link="`/${resource}`"
         >
           <SQLReviewAttachedResource :resource="resource" :show-prefix="true" />
         </BBBadge>
@@ -146,11 +145,13 @@ import {
   SQLRuleTable,
 } from "@/components/SQLReview/components";
 import type { PayloadForEngine } from "@/components/SQLReview/components/RuleConfigComponents";
+import { getAttachResourceType } from "@/components/SQLReview/components/useReviewConfigAttachedResource";
 import { WORKSPACE_ROUTE_SQL_REVIEW } from "@/router/dashboard/workspaceRoutes";
 import {
   pushNotification,
   useCurrentUserV1,
   useSQLReviewStore,
+  useDatabaseV1Store,
   useSubscriptionV1Store,
 } from "@/store";
 import type { RuleTemplate, SchemaPolicyRule } from "@/types";
@@ -187,6 +188,7 @@ const store = useSQLReviewStore();
 const router = useRouter();
 const currentUserV1 = useCurrentUserV1();
 const subscriptionStore = useSubscriptionV1Store();
+const databaseStore = useDatabaseV1Store();
 
 const state = reactive<LocalState>({
   showDisableModal: false,
@@ -213,6 +215,19 @@ const reviewPolicy = computed(() => {
     store.getReviewPolicyByName(props.sqlReviewPolicySlug) ??
     unknown("SQL_REVIEW")
   );
+});
+
+const databaseEngines = computed(() => {
+  const attachResourceType = getAttachResourceType(
+    reviewPolicy.value.resources
+  );
+  if (attachResourceType !== "database") {
+    return undefined;
+  }
+
+  return reviewPolicy.value.resources.map((database) => {
+    return databaseStore.getDatabaseByName(database).instanceEntity.engine;
+  });
 });
 
 const ruleListOfPolicy = computed((): RuleTemplate[] => {
@@ -268,7 +283,10 @@ const {
   params: filterParams,
   events: filterEvents,
   filteredRuleList,
-} = useSQLRuleFilter(toRef(state, "ruleList"));
+} = useSQLRuleFilter({
+  ruleList: toRef(state, "ruleList"),
+  checkedEngines: databaseEngines,
+});
 
 const pushUpdatedNotify = () => {
   pushNotification({

@@ -40,9 +40,9 @@
             <span>{{ enabledRuleCount(template) }}</span>
           </p>
         </div>
-        <heroicons-solid:check-circle
+        <CircleCheckIcon
           v-if="isSelectedTemplate(template)"
-          class="w-7 h-7 text-gray-500 absolute top-3 left-3"
+          class="w-5 h-5 text-accent absolute top-3 left-3"
         />
       </div>
     </div>
@@ -85,9 +85,9 @@
             </p>
           </div>
         </div>
-        <heroicons-solid:check-circle
+        <CircleCheckIcon
           v-if="isSelectedTemplate(template)"
-          class="w-7 h-7 text-gray-500 absolute top-3 left-3"
+          class="w-5 h-5 text-accent absolute top-3 left-3"
         />
       </div>
     </div>
@@ -95,10 +95,12 @@
 </template>
 
 <script lang="ts" setup>
+import { CircleCheckIcon } from "lucide-vue-next";
 import { computed, watch } from "vue";
 import { useSQLReviewPolicyList } from "@/store";
 import type { SQLReviewPolicyTemplate } from "@/types";
 import { TEMPLATE_LIST as builtInTemplateList } from "@/types";
+import type { Engine } from "@/types/proto/v1/common";
 import { SQLReviewRuleLevel } from "@/types/proto/v1/org_policy_service";
 import { rulesToTemplate } from "./utils";
 
@@ -106,11 +108,13 @@ const props = withDefaults(
   defineProps<{
     title?: string;
     required?: boolean;
-    selectedTemplate?: SQLReviewPolicyTemplate | undefined;
+    supportEngines?: Engine[];
+    selectedTemplateId?: string;
   }>(),
   {
     title: "",
     required: true,
+    supportEngines: undefined,
     selectedTemplate: undefined,
   }
 );
@@ -135,13 +139,20 @@ const reviewPolicyTemplateList = computed(() => {
 });
 
 const isSelectedTemplate = (template: SQLReviewPolicyTemplate) => {
-  return template.id === props.selectedTemplate?.id;
+  return template.id === props.selectedTemplateId;
 };
 
 const enabledRuleCount = (template: SQLReviewPolicyTemplate) => {
-  return template.ruleList.filter(
-    (rule) => rule.level !== SQLReviewRuleLevel.DISABLED
-  ).length;
+  const databaseEngineSet = new Set(props.supportEngines);
+  return template.ruleList.filter((rule) => {
+    if (rule.level === SQLReviewRuleLevel.DISABLED) {
+      return false;
+    }
+    if (databaseEngineSet.size > 0) {
+      return rule.engineList.some((engine) => databaseEngineSet.has(engine));
+    }
+    return true;
+  }).length;
 };
 
 const getTemplateImage = (id: string) => {

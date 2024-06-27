@@ -14,7 +14,7 @@
         </h3>
         <div class="textinfolabel flex items-center gap-x-2">
           {{ getRuleLocalization(rule.type).title }}
-          <RuleEngineIcons :rule="rule" />
+          <RuleEngineIcons :engine-list="rule.engineList" />
           <a
             :href="`https://www.bytebase.com/docs/sql-review/review-rules#${rule.type}`"
             target="__blank"

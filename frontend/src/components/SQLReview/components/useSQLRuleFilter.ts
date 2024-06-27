@@ -1,4 +1,4 @@
-import { computed, reactive, unref } from "vue";
+import { computed, reactive, unref, watch } from "vue";
 import { useRoute } from "vue-router";
 import type { MaybeRef, RuleTemplate } from "@/types";
 import { getRuleLocalization } from "@/types";
@@ -12,7 +12,13 @@ export type SQLRuleFilterParams = {
   searchText: string;
 };
 
-export const useSQLRuleFilter = (ruleList: MaybeRef<RuleTemplate[]>) => {
+export const useSQLRuleFilter = ({
+  ruleList,
+  checkedEngines,
+}: {
+  ruleList: MaybeRef<RuleTemplate[]>;
+  checkedEngines?: MaybeRef<Engine[] | undefined>;
+}) => {
   const route = useRoute();
   const params = reactive<SQLRuleFilterParams>({
     checkedEngine: new Set(),
@@ -22,6 +28,14 @@ export const useSQLRuleFilter = (ruleList: MaybeRef<RuleTemplate[]>) => {
       : undefined,
     searchText: "",
   });
+  watch(
+    () => unref(checkedEngines),
+    (val) => {
+      params.checkedEngine = new Set(val ?? []);
+    },
+    { immediate: true, deep: true }
+  );
+
   const events = {
     toggleCheckedEngine(engine: Engine) {
       if (params.checkedEngine.has(engine)) {

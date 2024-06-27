@@ -15,6 +15,7 @@
       >
         <NRadio value="environment">{{ $t("common.environment") }}</NRadio>
         <NRadio value="project">{{ $t("common.project") }}</NRadio>
+        <NRadio value="database">{{ $t("common.database") }}</NRadio>
       </NRadioGroup>
       <BBAttention type="info" class="my-2">
         {{
@@ -106,7 +107,8 @@
     <div>
       <SQLReviewTemplateSelector
         :required="true"
-        :selected-template="selectedTemplate"
+        :selected-template-id="selectedTemplateId"
+        :support-engines="databaseEngines"
         @select-template="$emit('select-template', $event)"
         @templates-change="onTemplatesChange($event)"
       />
@@ -115,32 +117,39 @@
 </template>
 
 <script lang="ts" setup>
+import { uniq } from "lodash-es";
 import { Status } from "nice-grpc-common";
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { BBTextField } from "@/bbkit";
 import ResourceIdField from "@/components/v2/Form/ResourceIdField.vue";
-import { useSQLReviewStore } from "@/store";
+import { useSQLReviewStore, useDatabaseV1Store } from "@/store";
 import {
   reviewConfigNamePrefix,
   projectNamePrefix,
   isDatabaseName,
 } from "@/store/modules/v1/common";
-import type { SQLReviewPolicyTemplate } from "@/types";
-import type { ResourceId, ValidatedMessage } from "@/types";
+import type {
+  SQLReviewPolicyTemplate,
+  ResourceId,
+  ValidatedMessage,
+} from "@/types";
 import type { Database } from "@/types/proto/v1/database_service";
 import type { Environment } from "@/types/proto/v1/environment_service";
 import type { Project } from "@/types/proto/v1/project_service";
 import { getErrorCode } from "@/utils/grpcweb";
 import { SQLReviewTemplateSelector } from "./components";
-import { type ResourceType } from "./components/useReviewConfigAttachedResource";
+import {
+  type ResourceType,
+  getAttachResourceType,
+} from "./components/useReviewConfigAttachedResource";
 
 const props = defineProps<{
   name: string;
   resourceId: string;
   attachedResources: string[];
   isCreate: boolean;
-  selectedTemplate?: SQLReviewPolicyTemplate;
+  selectedTemplateId?: string;
   isEdit: boolean;
   allowChangeAttachedResource: boolean;
 }>();
@@ -153,31 +162,30 @@ const emit = defineEmits<{
 }>();
 
 const sqlReviewStore = useSQLReviewStore();
+const databaseStore = useDatabaseV1Store();
 
 const attachResourceType = ref<ResourceType>(
-  (function (): ResourceType {
-    if (props.attachedResources.length === 0) {
-      return "environment";
-    }
-    if (props.attachedResources.every((resource) => isDatabaseName(resource))) {
-      return "database";
-    }
-    if (
-      props.attachedResources.every((resource) =>
-        resource.startsWith(projectNamePrefix)
-      )
-    ) {
-      return "project";
-    }
-    return "environment";
-  })()
+  getAttachResourceType(props.attachedResources)
 );
+
 const { t } = useI18n();
 
 watch(
   () => attachResourceType.value,
   () => emit("attached-resources-change", [])
 );
+
+const databaseEngines = computed(() => {
+  if (attachResourceType.value !== "database") {
+    return undefined;
+  }
+
+  return uniq(
+    props.attachedResources.map((database) => {
+      return databaseStore.getDatabaseByName(database).instanceEntity.engine;
+    })
+  );
+});
 
 const filterResource = (name: string): boolean => {
   if (!props.allowChangeAttachedResource) {
@@ -190,7 +198,7 @@ const onTemplatesChange = (templates: {
   policy: SQLReviewPolicyTemplate[];
   builtin: SQLReviewPolicyTemplate[];
 }) => {
-  if (!props.selectedTemplate) {
+  if (!props.selectedTemplateId) {
     emit("select-template", templates.policy[0] ?? templates.builtin[0]);
   }
 };
@@ -227,4 +235,6 @@ const validateResourceId = async (
 
   return [];
 };
+
+defineExpose({ attachResourceType, databaseEngines });
 </script>

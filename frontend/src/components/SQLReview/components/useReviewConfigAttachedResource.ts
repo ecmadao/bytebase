@@ -13,6 +13,19 @@ import {
 
 export type ResourceType = "environment" | "project" | "database";
 
+export const getAttachResourceType = (resources: string[]): ResourceType => {
+  if (resources.length === 0) {
+    return "environment";
+  }
+  if (resources.every((resource) => isDatabaseName(resource))) {
+    return "database";
+  }
+  if (resources.every((resource) => resource.startsWith(projectNamePrefix))) {
+    return "project";
+  }
+  return "environment";
+};
+
 export const useReviewConfigAttachedResource = (resource: Ref<string>) => {
   const environmentV1Store = useEnvironmentV1Store();
   const databaseStore = useDatabaseV1Store();

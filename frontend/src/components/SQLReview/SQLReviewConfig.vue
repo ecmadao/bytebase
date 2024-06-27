@@ -8,6 +8,7 @@
     <SQLRuleTable
       class="w-full"
       :rule-list="filteredRuleList"
+      :support-engines="supportEngines"
       :editable="true"
       @level-change="onLevelChange"
       @payload-change="onPayloadChange"
@@ -17,8 +18,8 @@
 </template>
 
 <script lang="ts" setup>
-import type { PropType } from "vue";
 import { toRef } from "vue";
+import type { Engine } from "@/types/proto/v1/common";
 import type { SQLReviewRuleLevel } from "@/types/proto/v1/org_policy_service";
 import type { RuleTemplate } from "@/types/sqlReview";
 import {
@@ -29,12 +30,10 @@ import {
 } from "./components/";
 import type { PayloadForEngine } from "./components/RuleConfigComponents";
 
-const props = defineProps({
-  selectedRuleList: {
-    required: true,
-    type: Object as PropType<RuleTemplate[]>,
-  },
-});
+const props = defineProps<{
+  selectedRuleList: RuleTemplate[];
+  supportEngines?: Engine[];
+}>();
 
 const emit = defineEmits<{
   (event: "apply-template", index: number): void;
@@ -51,7 +50,10 @@ const {
   params: filterParams,
   events: filterEvents,
   filteredRuleList,
-} = useSQLRuleFilter(toRef(props, "selectedRuleList"));
+} = useSQLRuleFilter({
+  checkedEngines: toRef(props, "supportEngines"),
+  ruleList: toRef(props, "selectedRuleList"),
+});
 
 const onPayloadChange = (rule: RuleTemplate, data: PayloadForEngine) => {
   if (!rule.componentList) {

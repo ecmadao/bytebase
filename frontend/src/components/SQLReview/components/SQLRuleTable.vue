@@ -5,9 +5,9 @@
         <span class="text-xl text-main font-semibold">
           {{ $t(`sql-review.category.${category.id.toLowerCase()}`) }}
         </span>
-        <span class="text-control-light text-md ml-1"
-          >({{ category.ruleList.length }})</span
-        >
+        <span class="text-control-light text-md ml-1">
+          ({{ category.ruleList.length }})
+        </span>
       </div>
       <BBGrid
         :column-list="columnList"
@@ -59,7 +59,7 @@
             </a>
           </div>
           <div class="bb-grid-cell gap-x-2">
-            <RuleEngineIcons :rule="rule" />
+            <RuleEngineIcons :engine-list="rule.engineList" />
           </div>
           <div class="bb-grid-cell">
             <RuleLevelSwitch
@@ -147,7 +147,7 @@
             </div>
           </div>
           <div class="flex gap-x-2 items-center">
-            <RuleEngineIcons :rule="rule" />
+            <RuleEngineIcons :engine-list="rule.engineList" />
           </div>
           <RuleLevelSwitch
             class="text-xs"
@@ -179,7 +179,7 @@
 <script lang="ts" setup>
 import { ExternalLinkIcon, PencilIcon } from "lucide-vue-next";
 import { NSwitch } from "naive-ui";
-import { computed, reactive } from "vue";
+import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { BBGrid, type BBGridColumn } from "@/bbkit";
 import { useCurrentPlan } from "@/store";
@@ -190,6 +190,7 @@ import {
   ruleIsAvailableInSubscription,
   planTypeToString,
 } from "@/types";
+import type { Engine } from "@/types/proto/v1/common";
 import { SQLReviewRuleLevel } from "@/types/proto/v1/org_policy_service";
 import type { PayloadForEngine } from "./RuleConfigComponents";
 import RuleLevelSwitch from "./RuleLevelSwitch.vue";

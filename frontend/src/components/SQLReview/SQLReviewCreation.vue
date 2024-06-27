@@ -15,11 +15,12 @@
     >
       <template #0>
         <SQLReviewInfo
+          ref="sqlReviewInfoRef"
           :name="state.name"
           :resource-id="state.resourceId"
           :attached-resources="state.attachedResources"
-          :selected-template="
-            state.pendingApplyTemplate || state.selectedTemplate
+          :selected-template-id="
+            state.pendingApplyTemplate?.id ?? state.selectedTemplate?.id
           "
           :is-edit="!!policy"
           :is-create="!isUpdate"
@@ -35,6 +36,7 @@
       <template #1>
         <SQLReviewConfig
           :selected-rule-list="state.selectedRuleList"
+          :support-engines="sqlReviewInfoRef?.databaseEngines"
           @level-change="onLevelChange"
           @payload-change="onPayloadChange"
           @comment-change="onCommentChange"
@@ -46,7 +48,7 @@
 
 <script lang="ts" setup>
 import { useDialog } from "naive-ui";
-import { reactive, computed, withDefaults } from "vue";
+import { reactive, computed, watch, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { StepTab } from "@/components/v2";
@@ -111,6 +113,7 @@ const router = useRouter();
 const store = useSQLReviewStore();
 const currentUserV1 = useCurrentUserV1();
 const subscriptionStore = useSubscriptionV1Store();
+const sqlReviewInfoRef = ref<InstanceType<typeof SQLReviewInfo>>();
 
 const BASIC_INFO_STEP = 0;
 const CONFIGURE_RULE_STEP = 1;
