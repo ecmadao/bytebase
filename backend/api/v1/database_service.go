@@ -376,7 +376,7 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, request *v1pb.Upda
 	if request.Database == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "database must be set")
 	}
-	if request.UpdateMask == nil {
+	if len(request.GetUpdateMask().GetPaths()) == 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "update_mask must be set")
 	}
 
@@ -1623,8 +1623,12 @@ func (s *DatabaseService) ListSlowQueries(ctx context.Context, request *v1pb.Lis
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "user not found")
 	}
+	role, ok := ctx.Value(common.RoleContextKey).(api.Role)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "role not found")
+	}
 
-	switch user.Role {
+	switch role {
 	case api.WorkspaceAdmin, api.WorkspaceDBA:
 		canAccessDBs = databases
 	case api.WorkspaceMember:
@@ -1638,7 +1642,7 @@ func (s *DatabaseService) ListSlowQueries(ctx context.Context, request *v1pb.Lis
 			}
 		}
 	default:
-		return nil, status.Errorf(codes.PermissionDenied, "unknown role %q", user.Role)
+		return nil, status.Errorf(codes.PermissionDenied, "unknown role %q", role)
 	}
 
 	result := &v1pb.ListSlowQueriesResponse{}

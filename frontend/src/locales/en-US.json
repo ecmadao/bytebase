@@ -1997,10 +1997,24 @@
         "no-protection-rule-configured": "No protection rule configured.",
         "only-apply-to-main-branches": "Only apply to main branches"
       },
-      "labels": {
-        "issue-labels": "Issue Labels",
-        "configure-labels": "Configure labels",
-        "force-issue-labels": "Require labels for all issues"
+      "issue-related": {
+        "self": "Issue related",
+        "labels": {
+          "self": "Labels",
+          "configure-labels": "Configure labels",
+          "force-issue-labels": {
+            "self": "Require labels for all issues",
+            "description": "Require at least one label when creating issues."
+          }
+        },
+        "allow-modify-statement": {
+          "self": "Allow modify statement",
+          "description": "Allow users to modify the statement of the issue after creation."
+        },
+        "auto-resolve-issue": {
+          "self": "Auto resolve issue",
+          "description": "Automatically resolve the issue after all tasks are completed."
+        }
       }
     },
     "members": {
@@ -2284,7 +2298,12 @@
     "rows-upper-limit": "reached the limit of query results",
     "tab-mode": {
       "readonly": "Read-only",
-      "admin": "Admin"
+      "admin": "Admin",
+      "standard": "Standard",
+      "description": {
+        "standard": "Allow DDL and DML statements.",
+        "readonly": "Allow SELECT, SHOW and SET statements."
+      }
     },
     "close-sheet": "Close sheet",
     "connect": "Connect",
@@ -2348,7 +2367,11 @@
     },
     "n-per-page": "{n} / page",
     "customize-tree-structure": "Customize tree structure",
-    "will-override-current-editing-statement": "Will override current editing statement."
+    "will-override-current-editing-statement": "Will override current editing statement.",
+    "standard-mode": {
+      "self": "Standard mode"
+    },
+    "to-enable-standard-mode": "to enable the standard mode"
   },
   "schema-editor": {
     "self": "Schema Editor",
@@ -3290,6 +3313,7 @@
     },
     "select": "Select role",
     "select-roles": "Select roles",
+    "default-workspace-role": "Users will get the \"Workspace Member\" role by default",
     "title": "Title",
     "select-role": "Select role",
     "expired-tip": "The role might has been expired.",
