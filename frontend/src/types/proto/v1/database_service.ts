@@ -504,11 +504,6 @@ export interface SchemaMetadata {
   /** The packages is the list of packages in a schema. */
   packages: PackageMetadata[];
   owner: string;
-  /**
-   * The triggers is the list of triggers in a schema, triggers are sorted by
-   * table_name, name, event, timing, action_order.
-   */
-  triggers: TriggerMetadata[];
   /** The sequences is the list of sequences in a schema, sorted by name. */
   sequences: SequenceMetadata[];
   events: EventMetadata[];
@@ -562,13 +557,6 @@ export interface SequenceMetadata {
 export interface TriggerMetadata {
   /** The name is the name of the trigger. */
   name: string;
-  /** The schema name of the table/view that the trigger is created. */
-  schemaName: string;
-  /**
-   * The table_name is the name of the table/view that the trigger is created
-   * on.
-   */
-  tableName: string;
   /**
    * The event is the event of the trigger, such as INSERT, UPDATE, DELETE,
    * TRUNCATE.
@@ -641,6 +629,7 @@ export interface TableMetadata {
    * Reference: https://clickhouse.com/docs/en/engines/table-engines/mergetree-family/mergetree#order_by
    */
   sortingKeys: string[];
+  triggers: TriggerMetadata[];
 }
 
 /** CheckConstraintMetadata is the metadata for check constraints. */
@@ -2242,102 +2231,6 @@ export function changelog_StatusToNumber(object: Changelog_Status): number {
     default:
       return -1;
   }
-}
-
-export interface ObjectSchema {
-  type: ObjectSchema_Type;
-  structKind?: ObjectSchema_StructKind | undefined;
-  arrayKind?: ObjectSchema_ArrayKind | undefined;
-}
-
-export enum ObjectSchema_Type {
-  TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED",
-  STRING = "STRING",
-  NUMBER = "NUMBER",
-  BOOLEAN = "BOOLEAN",
-  OBJECT = "OBJECT",
-  ARRAY = "ARRAY",
-  UNRECOGNIZED = "UNRECOGNIZED",
-}
-
-export function objectSchema_TypeFromJSON(object: any): ObjectSchema_Type {
-  switch (object) {
-    case 0:
-    case "TYPE_UNSPECIFIED":
-      return ObjectSchema_Type.TYPE_UNSPECIFIED;
-    case 1:
-    case "STRING":
-      return ObjectSchema_Type.STRING;
-    case 2:
-    case "NUMBER":
-      return ObjectSchema_Type.NUMBER;
-    case 3:
-    case "BOOLEAN":
-      return ObjectSchema_Type.BOOLEAN;
-    case 4:
-    case "OBJECT":
-      return ObjectSchema_Type.OBJECT;
-    case 5:
-    case "ARRAY":
-      return ObjectSchema_Type.ARRAY;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return ObjectSchema_Type.UNRECOGNIZED;
-  }
-}
-
-export function objectSchema_TypeToJSON(object: ObjectSchema_Type): string {
-  switch (object) {
-    case ObjectSchema_Type.TYPE_UNSPECIFIED:
-      return "TYPE_UNSPECIFIED";
-    case ObjectSchema_Type.STRING:
-      return "STRING";
-    case ObjectSchema_Type.NUMBER:
-      return "NUMBER";
-    case ObjectSchema_Type.BOOLEAN:
-      return "BOOLEAN";
-    case ObjectSchema_Type.OBJECT:
-      return "OBJECT";
-    case ObjectSchema_Type.ARRAY:
-      return "ARRAY";
-    case ObjectSchema_Type.UNRECOGNIZED:
-    default:
-      return "UNRECOGNIZED";
-  }
-}
-
-export function objectSchema_TypeToNumber(object: ObjectSchema_Type): number {
-  switch (object) {
-    case ObjectSchema_Type.TYPE_UNSPECIFIED:
-      return 0;
-    case ObjectSchema_Type.STRING:
-      return 1;
-    case ObjectSchema_Type.NUMBER:
-      return 2;
-    case ObjectSchema_Type.BOOLEAN:
-      return 3;
-    case ObjectSchema_Type.OBJECT:
-      return 4;
-    case ObjectSchema_Type.ARRAY:
-      return 5;
-    case ObjectSchema_Type.UNRECOGNIZED:
-    default:
-      return -1;
-  }
-}
-
-export interface ObjectSchema_StructKind {
-  properties: { [key: string]: ObjectSchema };
-}
-
-export interface ObjectSchema_StructKind_PropertiesEntry {
-  key: string;
-  value: ObjectSchema | undefined;
-}
-
-export interface ObjectSchema_ArrayKind {
-  kind: ObjectSchema | undefined;
 }
 
 function createBaseGetDatabaseRequest(): GetDatabaseRequest {
@@ -3992,7 +3885,6 @@ function createBaseSchemaMetadata(): SchemaMetadata {
     materializedViews: [],
     packages: [],
     owner: "",
-    triggers: [],
     sequences: [],
     events: [],
     enumTypes: [],
@@ -4033,9 +3925,6 @@ export const SchemaMetadata: MessageFns<SchemaMetadata> = {
     }
     if (message.owner !== "") {
       writer.uint32(90).string(message.owner);
-    }
-    for (const v of message.triggers) {
-      TriggerMetadata.encode(v!, writer.uint32(98).fork()).join();
     }
     for (const v of message.sequences) {
       SequenceMetadata.encode(v!, writer.uint32(106).fork()).join();
@@ -4144,14 +4033,6 @@ export const SchemaMetadata: MessageFns<SchemaMetadata> = {
           message.owner = reader.string();
           continue;
         }
-        case 12: {
-          if (tag !== 98) {
-            break;
-          }
-
-          message.triggers.push(TriggerMetadata.decode(reader, reader.uint32()));
-          continue;
-        }
         case 13: {
           if (tag !== 106) {
             break;
@@ -4210,15 +4091,10 @@ export const SchemaMetadata: MessageFns<SchemaMetadata> = {
         ? object.packages.map((e: any) => PackageMetadata.fromJSON(e))
         : [],
       owner: isSet(object.owner) ? globalThis.String(object.owner) : "",
-      triggers: globalThis.Array.isArray(object?.triggers)
-        ? object.triggers.map((e: any) => TriggerMetadata.fromJSON(e))
-        : [],
       sequences: globalThis.Array.isArray(object?.sequences)
         ? object.sequences.map((e: any) => SequenceMetadata.fromJSON(e))
         : [],
-      events: globalThis.Array.isArray(object?.events)
-        ? object.events.map((e: any) => EventMetadata.fromJSON(e))
-        : [],
+      events: globalThis.Array.isArray(object?.events) ? object.events.map((e: any) => EventMetadata.fromJSON(e)) : [],
       enumTypes: globalThis.Array.isArray(object?.enumTypes)
         ? object.enumTypes.map((e: any) => EnumTypeMetadata.fromJSON(e))
         : [],
@@ -4260,9 +4136,6 @@ export const SchemaMetadata: MessageFns<SchemaMetadata> = {
     if (message.owner !== "") {
       obj.owner = message.owner;
     }
-    if (message.triggers?.length) {
-      obj.triggers = message.triggers.map((e) => TriggerMetadata.toJSON(e));
-    }
     if (message.sequences?.length) {
       obj.sequences = message.sequences.map((e) => SequenceMetadata.toJSON(e));
     }
@@ -4291,7 +4164,6 @@ export const SchemaMetadata: MessageFns<SchemaMetadata> = {
     message.materializedViews = object.materializedViews?.map((e) => MaterializedViewMetadata.fromPartial(e)) || [];
     message.packages = object.packages?.map((e) => PackageMetadata.fromPartial(e)) || [];
     message.owner = object.owner ?? "";
-    message.triggers = object.triggers?.map((e) => TriggerMetadata.fromPartial(e)) || [];
     message.sequences = object.sequences?.map((e) => SequenceMetadata.fromPartial(e)) || [];
     message.events = object.events?.map((e) => EventMetadata.fromPartial(e)) || [];
     message.enumTypes = object.enumTypes?.map((e) => EnumTypeMetadata.fromPartial(e)) || [];
@@ -4750,8 +4622,6 @@ export const SequenceMetadata: MessageFns<SequenceMetadata> = {
 function createBaseTriggerMetadata(): TriggerMetadata {
   return {
     name: "",
-    schemaName: "",
-    tableName: "",
     event: "",
     timing: "",
     body: "",
@@ -4767,12 +4637,6 @@ export const TriggerMetadata: MessageFns<TriggerMetadata> = {
   encode(message: TriggerMetadata, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.name !== "") {
       writer.uint32(10).string(message.name);
-    }
-    if (message.schemaName !== "") {
-      writer.uint32(74).string(message.schemaName);
-    }
-    if (message.tableName !== "") {
-      writer.uint32(18).string(message.tableName);
     }
     if (message.event !== "") {
       writer.uint32(26).string(message.event);
@@ -4814,22 +4678,6 @@ export const TriggerMetadata: MessageFns<TriggerMetadata> = {
           }
 
           message.name = reader.string();
-          continue;
-        }
-        case 9: {
-          if (tag !== 74) {
-            break;
-          }
-
-          message.schemaName = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.tableName = reader.string();
           continue;
         }
         case 3: {
@@ -4908,8 +4756,6 @@ export const TriggerMetadata: MessageFns<TriggerMetadata> = {
   fromJSON(object: any): TriggerMetadata {
     return {
       name: isSet(object.name) ? globalThis.String(object.name) : "",
-      schemaName: isSet(object.schemaName) ? globalThis.String(object.schemaName) : "",
-      tableName: isSet(object.tableName) ? globalThis.String(object.tableName) : "",
       event: isSet(object.event) ? globalThis.String(object.event) : "",
       timing: isSet(object.timing) ? globalThis.String(object.timing) : "",
       body: isSet(object.body) ? globalThis.String(object.body) : "",
@@ -4925,12 +4771,6 @@ export const TriggerMetadata: MessageFns<TriggerMetadata> = {
     const obj: any = {};
     if (message.name !== "") {
       obj.name = message.name;
-    }
-    if (message.schemaName !== "") {
-      obj.schemaName = message.schemaName;
-    }
-    if (message.tableName !== "") {
-      obj.tableName = message.tableName;
     }
     if (message.event !== "") {
       obj.event = message.event;
@@ -4965,8 +4805,6 @@ export const TriggerMetadata: MessageFns<TriggerMetadata> = {
   fromPartial(object: DeepPartial<TriggerMetadata>): TriggerMetadata {
     const message = createBaseTriggerMetadata();
     message.name = object.name ?? "";
-    message.schemaName = object.schemaName ?? "";
-    message.tableName = object.tableName ?? "";
     message.event = object.event ?? "";
     message.timing = object.timing ?? "";
     message.body = object.body ?? "";
@@ -5109,6 +4947,7 @@ function createBaseTableMetadata(): TableMetadata {
     checkConstraints: [],
     owner: "",
     sortingKeys: [],
+    triggers: [],
   };
 }
 
@@ -5167,6 +5006,9 @@ export const TableMetadata: MessageFns<TableMetadata> = {
     }
     for (const v of message.sortingKeys) {
       writer.uint32(154).string(v!);
+    }
+    for (const v of message.triggers) {
+      TriggerMetadata.encode(v!, writer.uint32(162).fork()).join();
     }
     return writer;
   },
@@ -5322,6 +5164,14 @@ export const TableMetadata: MessageFns<TableMetadata> = {
           message.sortingKeys.push(reader.string());
           continue;
         }
+        case 20: {
+          if (tag !== 162) {
+            break;
+          }
+
+          message.triggers.push(TriggerMetadata.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -5362,6 +5212,9 @@ export const TableMetadata: MessageFns<TableMetadata> = {
       owner: isSet(object.owner) ? globalThis.String(object.owner) : "",
       sortingKeys: globalThis.Array.isArray(object?.sortingKeys)
         ? object.sortingKeys.map((e: any) => globalThis.String(e))
+        : [],
+      triggers: globalThis.Array.isArray(object?.triggers)
+        ? object.triggers.map((e: any) => TriggerMetadata.fromJSON(e))
         : [],
     };
   },
@@ -5422,6 +5275,9 @@ export const TableMetadata: MessageFns<TableMetadata> = {
     if (message.sortingKeys?.length) {
       obj.sortingKeys = message.sortingKeys;
     }
+    if (message.triggers?.length) {
+      obj.triggers = message.triggers.map((e) => TriggerMetadata.toJSON(e));
+    }
     return obj;
   },
 
@@ -5456,6 +5312,7 @@ export const TableMetadata: MessageFns<TableMetadata> = {
     message.checkConstraints = object.checkConstraints?.map((e) => CheckConstraintMetadata.fromPartial(e)) || [];
     message.owner = object.owner ?? "";
     message.sortingKeys = object.sortingKeys?.map((e) => e) || [];
+    message.triggers = object.triggers?.map((e) => TriggerMetadata.fromPartial(e)) || [];
     return message;
   },
 };
@@ -12698,322 +12555,6 @@ export const Changelog: MessageFns<Changelog> = {
     message.revision = object.revision ?? "";
     message.changedResources = (object.changedResources !== undefined && object.changedResources !== null)
       ? ChangedResources.fromPartial(object.changedResources)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseObjectSchema(): ObjectSchema {
-  return { type: ObjectSchema_Type.TYPE_UNSPECIFIED, structKind: undefined, arrayKind: undefined };
-}
-
-export const ObjectSchema: MessageFns<ObjectSchema> = {
-  encode(message: ObjectSchema, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.type !== ObjectSchema_Type.TYPE_UNSPECIFIED) {
-      writer.uint32(8).int32(objectSchema_TypeToNumber(message.type));
-    }
-    if (message.structKind !== undefined) {
-      ObjectSchema_StructKind.encode(message.structKind, writer.uint32(18).fork()).join();
-    }
-    if (message.arrayKind !== undefined) {
-      ObjectSchema_ArrayKind.encode(message.arrayKind, writer.uint32(26).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ObjectSchema {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseObjectSchema();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 8) {
-            break;
-          }
-
-          message.type = objectSchema_TypeFromJSON(reader.int32());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.structKind = ObjectSchema_StructKind.decode(reader, reader.uint32());
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.arrayKind = ObjectSchema_ArrayKind.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): ObjectSchema {
-    return {
-      type: isSet(object.type) ? objectSchema_TypeFromJSON(object.type) : ObjectSchema_Type.TYPE_UNSPECIFIED,
-      structKind: isSet(object.structKind) ? ObjectSchema_StructKind.fromJSON(object.structKind) : undefined,
-      arrayKind: isSet(object.arrayKind) ? ObjectSchema_ArrayKind.fromJSON(object.arrayKind) : undefined,
-    };
-  },
-
-  toJSON(message: ObjectSchema): unknown {
-    const obj: any = {};
-    if (message.type !== ObjectSchema_Type.TYPE_UNSPECIFIED) {
-      obj.type = objectSchema_TypeToJSON(message.type);
-    }
-    if (message.structKind !== undefined) {
-      obj.structKind = ObjectSchema_StructKind.toJSON(message.structKind);
-    }
-    if (message.arrayKind !== undefined) {
-      obj.arrayKind = ObjectSchema_ArrayKind.toJSON(message.arrayKind);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<ObjectSchema>): ObjectSchema {
-    return ObjectSchema.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<ObjectSchema>): ObjectSchema {
-    const message = createBaseObjectSchema();
-    message.type = object.type ?? ObjectSchema_Type.TYPE_UNSPECIFIED;
-    message.structKind = (object.structKind !== undefined && object.structKind !== null)
-      ? ObjectSchema_StructKind.fromPartial(object.structKind)
-      : undefined;
-    message.arrayKind = (object.arrayKind !== undefined && object.arrayKind !== null)
-      ? ObjectSchema_ArrayKind.fromPartial(object.arrayKind)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseObjectSchema_StructKind(): ObjectSchema_StructKind {
-  return { properties: {} };
-}
-
-export const ObjectSchema_StructKind: MessageFns<ObjectSchema_StructKind> = {
-  encode(message: ObjectSchema_StructKind, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    Object.entries(message.properties).forEach(([key, value]) => {
-      ObjectSchema_StructKind_PropertiesEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).join();
-    });
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ObjectSchema_StructKind {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseObjectSchema_StructKind();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          const entry2 = ObjectSchema_StructKind_PropertiesEntry.decode(reader, reader.uint32());
-          if (entry2.value !== undefined) {
-            message.properties[entry2.key] = entry2.value;
-          }
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): ObjectSchema_StructKind {
-    return {
-      properties: isObject(object.properties)
-        ? Object.entries(object.properties).reduce<{ [key: string]: ObjectSchema }>((acc, [key, value]) => {
-          acc[key] = ObjectSchema.fromJSON(value);
-          return acc;
-        }, {})
-        : {},
-    };
-  },
-
-  toJSON(message: ObjectSchema_StructKind): unknown {
-    const obj: any = {};
-    if (message.properties) {
-      const entries = Object.entries(message.properties);
-      if (entries.length > 0) {
-        obj.properties = {};
-        entries.forEach(([k, v]) => {
-          obj.properties[k] = ObjectSchema.toJSON(v);
-        });
-      }
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<ObjectSchema_StructKind>): ObjectSchema_StructKind {
-    return ObjectSchema_StructKind.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<ObjectSchema_StructKind>): ObjectSchema_StructKind {
-    const message = createBaseObjectSchema_StructKind();
-    message.properties = Object.entries(object.properties ?? {}).reduce<{ [key: string]: ObjectSchema }>(
-      (acc, [key, value]) => {
-        if (value !== undefined) {
-          acc[key] = ObjectSchema.fromPartial(value);
-        }
-        return acc;
-      },
-      {},
-    );
-    return message;
-  },
-};
-
-function createBaseObjectSchema_StructKind_PropertiesEntry(): ObjectSchema_StructKind_PropertiesEntry {
-  return { key: "", value: undefined };
-}
-
-export const ObjectSchema_StructKind_PropertiesEntry: MessageFns<ObjectSchema_StructKind_PropertiesEntry> = {
-  encode(message: ObjectSchema_StructKind_PropertiesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.key !== "") {
-      writer.uint32(10).string(message.key);
-    }
-    if (message.value !== undefined) {
-      ObjectSchema.encode(message.value, writer.uint32(18).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ObjectSchema_StructKind_PropertiesEntry {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseObjectSchema_StructKind_PropertiesEntry();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.key = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.value = ObjectSchema.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): ObjectSchema_StructKind_PropertiesEntry {
-    return {
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
-      value: isSet(object.value) ? ObjectSchema.fromJSON(object.value) : undefined,
-    };
-  },
-
-  toJSON(message: ObjectSchema_StructKind_PropertiesEntry): unknown {
-    const obj: any = {};
-    if (message.key !== "") {
-      obj.key = message.key;
-    }
-    if (message.value !== undefined) {
-      obj.value = ObjectSchema.toJSON(message.value);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<ObjectSchema_StructKind_PropertiesEntry>): ObjectSchema_StructKind_PropertiesEntry {
-    return ObjectSchema_StructKind_PropertiesEntry.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<ObjectSchema_StructKind_PropertiesEntry>): ObjectSchema_StructKind_PropertiesEntry {
-    const message = createBaseObjectSchema_StructKind_PropertiesEntry();
-    message.key = object.key ?? "";
-    message.value = (object.value !== undefined && object.value !== null)
-      ? ObjectSchema.fromPartial(object.value)
-      : undefined;
-    return message;
-  },
-};
-
-function createBaseObjectSchema_ArrayKind(): ObjectSchema_ArrayKind {
-  return { kind: undefined };
-}
-
-export const ObjectSchema_ArrayKind: MessageFns<ObjectSchema_ArrayKind> = {
-  encode(message: ObjectSchema_ArrayKind, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.kind !== undefined) {
-      ObjectSchema.encode(message.kind, writer.uint32(10).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): ObjectSchema_ArrayKind {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseObjectSchema_ArrayKind();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.kind = ObjectSchema.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): ObjectSchema_ArrayKind {
-    return { kind: isSet(object.kind) ? ObjectSchema.fromJSON(object.kind) : undefined };
-  },
-
-  toJSON(message: ObjectSchema_ArrayKind): unknown {
-    const obj: any = {};
-    if (message.kind !== undefined) {
-      obj.kind = ObjectSchema.toJSON(message.kind);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<ObjectSchema_ArrayKind>): ObjectSchema_ArrayKind {
-    return ObjectSchema_ArrayKind.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<ObjectSchema_ArrayKind>): ObjectSchema_ArrayKind {
-    const message = createBaseObjectSchema_ArrayKind();
-    message.kind = (object.kind !== undefined && object.kind !== null)
-      ? ObjectSchema.fromPartial(object.kind)
       : undefined;
     return message;
   },
