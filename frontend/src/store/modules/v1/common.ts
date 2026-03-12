@@ -76,17 +76,17 @@ export const getUserId = (name: string): number => {
   return userId;
 };
 
-export const getNumberId = (name: string, prefix: string): number => {
+export const getStringId = (name: string, prefix: string): string => {
   const tokens = getNameParentTokens(name, [prefix]);
-  return Number(tokens[0] || UNKNOWN_ID);
+  return tokens[0] || "";
 };
 
-export const getLogId = (name: string): number => {
-  return getNumberId(name, logNamePrefix);
+export const getLogId = (name: string): string => {
+  return getStringId(name, logNamePrefix);
 };
 
-export const getIssueId = (name: string): number => {
-  return getNumberId(name, issueNamePrefix);
+export const getIssueId = (name: string): string => {
+  return getStringId(name, issueNamePrefix);
 };
 
 export const getProjectName = (name: string): string => {

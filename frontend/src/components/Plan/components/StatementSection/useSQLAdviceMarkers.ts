@@ -4,7 +4,6 @@ import type { AdviceOption } from "@/components/MonacoEditor";
 import type { PlanCheckRun } from "@/types/proto-es/v1/plan_service_pb";
 import { PlanCheckRun_Result_Type } from "@/types/proto-es/v1/plan_service_pb";
 import { type Advice, Advice_Level } from "@/types/proto-es/v1/sql_service_pb";
-import { extractPlanCheckRunUID } from "@/utils";
 
 export const useSQLAdviceMarkers = (
   isCreating: Ref<boolean>,
@@ -53,8 +52,9 @@ const getLatestAdviceOptions = (
   planCheckRuns: PlanCheckRun[],
   resultType: PlanCheckRun_Result_Type
 ) => {
-  const latest = maxBy(planCheckRuns, (checkRun) =>
-    parseInt(extractPlanCheckRunUID(checkRun.name), 10)
+  const latest = maxBy(
+    planCheckRuns,
+    (checkRun) => checkRun.createTime?.seconds ?? BigInt(0)
   );
   if (!latest) {
     return [];

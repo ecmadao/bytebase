@@ -44,9 +44,7 @@ export function useInitializePlan(
     if (unref(planId)) {
       const id = unref(planId)!;
       if (id.toLowerCase() === "create") return "create";
-      const uid = Number(id);
-      if (uid > 0) return String(uid);
-      return String(UNKNOWN_ID);
+      return id;
     }
     // Otherwise, if legacyRolloutId is provided, we'll fetch the plan from the rollout
     if (unref(legacyRolloutId)) {

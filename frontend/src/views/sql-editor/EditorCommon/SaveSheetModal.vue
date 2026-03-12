@@ -79,8 +79,8 @@ const doSaveSheet = async () => {
   } = pendingEdit.value.rawTab;
   const folders = folderFormRef.value?.folders ?? [];
 
-  const sheetId = Number(extractWorksheetUID(worksheet ?? ""));
-  if (sheetId !== UNKNOWN_ID) {
+  const sheetId = extractWorksheetUID(worksheet ?? "");
+  if (sheetId !== String(UNKNOWN_ID)) {
     await editorContext.maybeUpdateWorksheet({
       tabId,
       worksheet,

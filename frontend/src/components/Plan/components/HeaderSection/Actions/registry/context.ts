@@ -19,7 +19,6 @@ import {
 import { Advice_Level } from "@/types/proto-es/v1/sql_service_pb";
 import type { User } from "@/types/proto-es/v1/user_service_pb";
 import {
-  extractTaskRunUID,
   extractTaskUID,
   hasProjectPermissionV2,
   isUserIncludedInList,
@@ -134,7 +133,7 @@ function computeExportArchiveReady(
       return first(
         orderBy(
           taskRunsForTask,
-          (taskRun) => Number(extractTaskRunUID(taskRun.name)),
+          (taskRun) => taskRun.createTime?.seconds ?? BigInt(0),
           "desc"
         )
       );

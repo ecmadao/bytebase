@@ -36,7 +36,6 @@ import { orderBy } from "lodash-es";
 import { NCheckbox, NEmpty, NSpin } from "naive-ui";
 import { computed, ref, watch } from "vue";
 import type { Issue } from "@/types/proto-es/v1/issue_service_pb";
-import { extractIssueUID } from "@/utils";
 import BatchIssueActionsV1 from "./BatchIssueActionsV1.vue";
 import IssueListItem from "./IssueListItem.vue";
 
@@ -69,7 +68,7 @@ const sortedIssueList = computed(() => {
         `${issue.title} ${issue.description}`.includes(props.highlightText)
           ? 1
           : 0,
-      (issue) => parseInt(extractIssueUID(issue.name)),
+      (issue) => issue.createTime?.seconds ?? BigInt(0),
     ],
     ["desc", "desc"]
   );

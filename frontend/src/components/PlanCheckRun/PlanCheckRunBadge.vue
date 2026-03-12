@@ -49,7 +49,6 @@ import {
   PlanCheckRun_Status,
 } from "@/types/proto-es/v1/plan_service_pb";
 import { Advice_Level } from "@/types/proto-es/v1/sql_service_pb";
-import { extractPlanCheckRunUID } from "@/utils";
 import { planCheckRunResultStatus } from "./common";
 
 const props = defineProps<{
@@ -67,8 +66,9 @@ const { t } = useI18n();
 
 const latestPlanCheckRun = computed(() => {
   // Get the latest PlanCheckRun by UID.
-  return maxBy(props.planCheckRuns, (check) =>
-    Number(extractPlanCheckRunUID(check.name))
+  return maxBy(
+    props.planCheckRuns,
+    (check) => check.createTime?.seconds ?? BigInt(0)
   )!;
 });
 

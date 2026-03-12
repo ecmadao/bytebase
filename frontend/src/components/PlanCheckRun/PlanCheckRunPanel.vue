@@ -87,7 +87,7 @@ const selectedPlanCheckRunList = computed(() => {
     props.planCheckRunList.filter((run) =>
       run.results.some((result) => result.type === selectedTypeRef.value)
     ),
-    (checkRun) => parseInt(extractPlanCheckRunUID(checkRun.name), 10),
+    (checkRun) => checkRun.createTime?.seconds ?? BigInt(0),
     "desc"
   );
 });

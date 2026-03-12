@@ -40,7 +40,7 @@ import {
   TaskRun_ExportArchiveStatus,
 } from "@/types/proto-es/v1/rollout_service_pb";
 import { ExportRequestSchema } from "@/types/proto-es/v1/sql_service_pb";
-import { extractTaskRunUID, extractTaskUID } from "@/utils";
+import { extractTaskUID } from "@/utils";
 
 interface LocalState {
   isExporting: boolean;
@@ -61,7 +61,7 @@ const isExported = computed(() => {
       return first(
         orderBy(
           taskRunsForTask,
-          (taskRun) => Number(extractTaskRunUID(taskRun.name)),
+          (taskRun) => taskRun.createTime?.seconds ?? BigInt(0),
           "desc"
         )
       );

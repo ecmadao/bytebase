@@ -24,7 +24,7 @@ import { Task_Status } from "@/types/proto-es/v1/rollout_service_pb";
 import { extractDatabaseResourceName, extractProjectResourceName } from "..";
 
 export const extractIssueUID = (name: string) => {
-  const pattern = /(?:^|\/)issues\/(\d+)(?:$|\/)/;
+  const pattern = /(?:^|\/)issues\/([^/]+)(?:$|\/)/;
   const matches = name.match(pattern);
   return matches?.[1] ?? "";
 };

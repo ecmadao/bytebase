@@ -75,7 +75,7 @@ const issueRoutes: RouteRecordRaw[] = [
         ],
       },
       {
-        path: "issues/:issueId(\\d+)",
+        path: "issues/:issueId",
         name: PROJECT_V1_ROUTE_ISSUE_DETAIL,
         meta: {
           requiredPermissionList: () => ["bb.issues.get"],

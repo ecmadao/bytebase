@@ -12,7 +12,7 @@ export const sheetNameOfSpec = (spec: Plan_Spec): string => {
 };
 
 export const extractPlanUID = (name: string) => {
-  const pattern = /(?:^|\/)plans\/(\d+)(?:$|\/)/;
+  const pattern = /(?:^|\/)plans\/([^/]+)(?:$|\/)/;
   const matches = name.match(pattern);
   return matches?.[1] ?? "";
 };
@@ -26,7 +26,7 @@ export const isValidPlanName = (name: string | undefined) => {
 };
 
 export const extractPlanCheckRunUID = (name: string) => {
-  const pattern = /(?:^|\/)planCheckRuns\/(\d+)(?:$|\/)/;
+  const pattern = /(?:^|\/)planCheckRuns\/([^/]+)(?:$|\/)/;
   const matches = name.match(pattern);
   return matches?.[1] ?? "";
 };
