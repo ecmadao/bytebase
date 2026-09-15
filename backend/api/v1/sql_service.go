@@ -9,6 +9,7 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"log/slog"
@@ -41,11 +42,12 @@ import (
 // SQLService is the service for SQL.
 type SQLService struct {
 	v1connect.UnimplementedSQLServiceHandler
-	store          *store.Store
-	schemaSyncer   *schemasync.Syncer
-	dbFactory      *dbfactory.DBFactory
-	licenseService *enterprise.LicenseService
-	iamManager     *iam.Manager
+	store                *store.Store
+	schemaSyncer         *schemasync.Syncer
+	dbFactory            *dbfactory.DBFactory
+	licenseService       *enterprise.LicenseService
+	iamManager           *iam.Manager
+	schemaSyncRetryGuard *schemaSyncRetryGuard
 	// queryHistoryService backs the deprecated query history aliases until
 	// they are removed.
 	queryHistoryService *QueryHistoryService
@@ -61,13 +63,61 @@ func NewSQLService(
 	queryHistoryService *QueryHistoryService,
 ) *SQLService {
 	return &SQLService{
-		store:               store,
-		schemaSyncer:        schemaSyncer,
-		dbFactory:           dbFactory,
-		licenseService:      licenseService,
-		iamManager:          iamManager,
-		queryHistoryService: queryHistoryService,
+		store:                store,
+		schemaSyncer:         schemaSyncer,
+		dbFactory:            dbFactory,
+		licenseService:       licenseService,
+		iamManager:           iamManager,
+		schemaSyncRetryGuard: newSchemaSyncRetryGuard(schemaSyncRetryCooldown, time.Now),
+		queryHistoryService:  queryHistoryService,
 	}
+}
+
+const schemaSyncRetryCooldown = time.Minute
+
+type schemaSyncRetryKey struct {
+	workspaceID string
+	instanceID  string
+	database    string
+}
+
+type schemaSyncRetryGuard struct {
+	mu       sync.Mutex
+	cooldown time.Duration
+	now      func() time.Time
+	lastSync map[schemaSyncRetryKey]time.Time
+}
+
+func newSchemaSyncRetryGuard(cooldown time.Duration, now func() time.Time) *schemaSyncRetryGuard {
+	return &schemaSyncRetryGuard{
+		cooldown: cooldown,
+		now:      now,
+		lastSync: make(map[schemaSyncRetryKey]time.Time),
+	}
+}
+
+func (g *schemaSyncRetryGuard) TryStart(workspaceID, instanceID, database string) bool {
+	if g == nil {
+		return true
+	}
+	key := schemaSyncRetryKey{workspaceID: workspaceID, instanceID: instanceID, database: database}
+	now := g.now()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if lastSync, ok := g.lastSync[key]; ok && now.Sub(lastSync) < g.cooldown {
+		return false
+	}
+	g.lastSync[key] = now
+	return true
+}
+
+func (g *schemaSyncRetryGuard) Clear(workspaceID, instanceID, database string) {
+	if g == nil {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.lastSync, schemaSyncRetryKey{workspaceID: workspaceID, instanceID: instanceID, database: database})
 }
 
 // AdminExecute executes the SQL statement.
@@ -422,6 +472,7 @@ func (s *SQLService) Query(ctx context.Context, req *connect.Request[v1pb.QueryR
 		s.licenseService,
 		optionalAccessCheck,
 		s.schemaSyncer,
+		s.schemaSyncRetryGuard,
 	)
 	slog.Debug("query finished",
 		log.BBError(queryErr),
@@ -669,6 +720,7 @@ func queryRetry(
 	licenseService *enterprise.LicenseService,
 	optionalAccessCheck accessCheckFunc,
 	schemaSyncer *schemasync.Syncer,
+	schemaSyncRetryGuard *schemaSyncRetryGuard,
 	multiStatement bool,
 ) ([]*v1pb.QueryResult, []*parserbase.QuerySpan, time.Duration, error) {
 	var spans []*parserbase.QuerySpan
@@ -739,36 +791,11 @@ func queryRetry(
 		return results, nil, duration, nil
 	}
 
-	syncDatabaseMap := make(map[string]bool)
-	for i, r := range results {
-		if i >= len(spans) {
-			continue
-		}
-		// Re-sync even for error results: MaskResults also refuses partial rows.
-		// Permanently empty tables re-sync on every query until BYT-10074 adds throttling.
-		if maskingEnabled && maskingBlockedByUnresolvedColumns(spans[i], instance) {
-			for _, dbName := range spans[i].UnresolvedColumnsError.Databases() {
-				slog.Debug("database metadata need to sync: unresolved columns",
-					slog.String("instance", instance.ResourceID),
-					slog.String("database", dbName),
-					slog.String("detail", spans[i].UnresolvedColumnsError.Error()))
-				syncDatabaseMap[dbName] = true
-			}
-		}
-		if r.Error != "" {
-			continue
-		}
-		if spans[i].NotFoundError != nil {
-			for k := range spans[i].SourceColumns {
-				slog.Debug("database metadata need to sync", slog.String("instance", instance.ResourceID), slog.String("database", k.Database), slog.String("schema", k.Schema), slog.String("table", k.Table), slog.String("column", k.Column))
-				syncDatabaseMap[k.Database] = true
-			}
-		}
-	}
+	syncDatabaseMap := databaseMetadataSyncCandidates(results, spans, maskingEnabled, instance)
+	syncedDatabaseMap := make(map[string]bool)
 
 	// Sync database metadata.
 	for accessDatabaseName := range syncDatabaseMap {
-		slog.Debug("sync database metadata", slog.String("instance", instance.ResourceID), slog.String("database", accessDatabaseName))
 		d, err := stores.GetDatabase(ctx, &store.FindDatabaseMessage{Workspace: common.GetWorkspaceIDFromContext(ctx), InstanceID: &instance.ResourceID, DatabaseName: &accessDatabaseName})
 		if err != nil {
 			return nil, nil, duration, err
@@ -780,13 +807,20 @@ func queryRetry(
 				slog.String("database", accessDatabaseName))
 			continue
 		}
+		workspaceID := common.GetWorkspaceIDFromContext(ctx)
+		if !schemaSyncRetryGuard.TryStart(workspaceID, instance.ResourceID, accessDatabaseName) {
+			slog.Debug("skip metadata sync during cooldown", slog.String("instance", instance.ResourceID), slog.String("database", accessDatabaseName))
+			continue
+		}
+		slog.Debug("sync database metadata", slog.String("instance", instance.ResourceID), slog.String("database", accessDatabaseName))
 		if err := schemaSyncer.SyncDatabaseSchema(ctx, d); err != nil {
 			return nil, nil, duration, errors.Wrapf(err, "failed to sync database schema for database %q", accessDatabaseName)
 		}
+		syncedDatabaseMap[accessDatabaseName] = true
 	}
 
 	// Retry getting query span.
-	if len(syncDatabaseMap) > 0 {
+	if len(syncedDatabaseMap) > 0 {
 		slog.Debug("retry query after sync metadata", slog.String("instance", instance.ResourceID), slog.String("database", database.DatabaseName))
 		spans, err = parserbase.GetQuerySpan(
 			ctx,
@@ -804,6 +838,13 @@ func queryRetry(
 		)
 		if err != nil {
 			return nil, nil, time.Duration(0), err
+		}
+		unresolvedDatabaseMap := databaseMetadataSyncFailures(spans)
+		workspaceID := common.GetWorkspaceIDFromContext(ctx)
+		for databaseName := range syncedDatabaseMap {
+			if !unresolvedDatabaseMap[databaseName] {
+				schemaSyncRetryGuard.Clear(workspaceID, instance.ResourceID, databaseName)
+			}
 		}
 		// After replacing backup table with source, we can apply the original access check and mask sensitive data for backup table.
 		// If err != nil, this function will return the original spans.
@@ -862,6 +903,48 @@ func queryRetry(
 	return results, spans, duration, nil
 }
 
+func databaseMetadataSyncCandidates(results []*v1pb.QueryResult, spans []*parserbase.QuerySpan, maskingEnabled bool, instance *store.InstanceMessage) map[string]bool {
+	databaseMap := make(map[string]bool)
+	for i, result := range results {
+		if i >= len(spans) || spans[i] == nil {
+			continue
+		}
+		span := spans[i]
+		if maskingEnabled && maskingBlockedByUnresolvedColumns(span, instance) {
+			for _, databaseName := range span.UnresolvedColumnsError.Databases() {
+				databaseMap[databaseName] = true
+			}
+		}
+		if result.GetError() != "" || span.NotFoundError == nil {
+			continue
+		}
+		for column := range span.SourceColumns {
+			databaseMap[column.Database] = true
+		}
+	}
+	return databaseMap
+}
+
+func databaseMetadataSyncFailures(spans []*parserbase.QuerySpan) map[string]bool {
+	databaseMap := make(map[string]bool)
+	for _, span := range spans {
+		if span == nil {
+			continue
+		}
+		if span.UnresolvedColumnsError != nil {
+			for _, databaseName := range span.UnresolvedColumnsError.Databases() {
+				databaseMap[databaseName] = true
+			}
+		}
+		if span.NotFoundError != nil {
+			for column := range span.SourceColumns {
+				databaseMap[column.Database] = true
+			}
+		}
+	}
+	return databaseMap
+}
+
 func getSensitivePredicateColumnErrorMessages(sensitiveColumns []parserbase.ColumnResource) string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("Using sensitive columns in WHERE clause is not allowed: ")
@@ -889,6 +972,7 @@ func queryRetryStopOnError(
 	licenseService *enterprise.LicenseService,
 	optionalAccessCheck accessCheckFunc,
 	schemaSyncer *schemasync.Syncer,
+	schemaSyncRetryGuard *schemaSyncRetryGuard,
 ) ([]*v1pb.QueryResult, []*parserbase.QuerySpan, time.Duration, error) {
 	// MSSQL requires statements to be executed as a batch to preserve variable scope.
 	// For example, "DECLARE @meta int = 1; SELECT @meta" must be sent as one batch,
@@ -899,7 +983,7 @@ func queryRetryStopOnError(
 		if err != nil {
 			return nil, nil, 0, err
 		}
-		return queryRetry(ctx, stores, user, instance, database, driver, conn, statements, statement, queryContext, licenseService, optionalAccessCheck, schemaSyncer, hasMultipleStatements(statements))
+		return queryRetry(ctx, stores, user, instance, database, driver, conn, statements, statement, queryContext, licenseService, optionalAccessCheck, schemaSyncer, schemaSyncRetryGuard, hasMultipleStatements(statements))
 	}
 
 	// Split the statement into individual SQLs
@@ -910,7 +994,7 @@ func queryRetryStopOnError(
 		// statement as a single unit. Where GetQuerySpan is supported (e.g. MongoDB),
 		// it re-parses the raw text and surfaces the parse error; otherwise
 		// queryRetry returns nil spans (old behavior).
-		return queryRetry(ctx, stores, user, instance, database, driver, conn, []parserbase.Statement{{Text: statement}}, statement, queryContext, licenseService, optionalAccessCheck, schemaSyncer, false)
+		return queryRetry(ctx, stores, user, instance, database, driver, conn, []parserbase.Statement{{Text: statement}}, statement, queryContext, licenseService, optionalAccessCheck, schemaSyncer, schemaSyncRetryGuard, false)
 	}
 
 	// A multi-statement batch can change the session schema mid-batch (e.g. SET search_path),
@@ -928,7 +1012,7 @@ func queryRetryStopOnError(
 			continue
 		}
 
-		results, spans, duration, err := queryRetry(ctx, stores, user, instance, database, driver, conn, []parserbase.Statement{stmt}, stmt.Text, queryContext, licenseService, optionalAccessCheck, schemaSyncer, multiStatement)
+		results, spans, duration, err := queryRetry(ctx, stores, user, instance, database, driver, conn, []parserbase.Statement{stmt}, stmt.Text, queryContext, licenseService, optionalAccessCheck, schemaSyncer, schemaSyncRetryGuard, multiStatement)
 		totalDuration += duration
 
 		if err != nil {
@@ -1034,7 +1118,7 @@ func (s *SQLService) Export(ctx context.Context, req *connect.Request[v1pb.Expor
 	if accessGrant != nil {
 		skipMasking = accessGrant.Payload.Unmask && !mcpIgnoresMaskingExemptions(ctx)
 	}
-	bytes, duration, exportErr := doExport(ctx, s.store, s.dbFactory, s.licenseService, request, user, instance, database, optionalAccessCheck, s.schemaSyncer, dataSource, skipMasking)
+	bytes, duration, exportErr := doExport(ctx, s.store, s.dbFactory, s.licenseService, request, user, instance, database, optionalAccessCheck, s.schemaSyncer, s.schemaSyncRetryGuard, dataSource, skipMasking)
 
 	s.createQueryHistory(instance, database, store.QueryHistoryTypeExport, statement, user.Email, duration, exportErr)
 
@@ -1069,6 +1153,7 @@ func doExport(
 	database *store.DatabaseMessage,
 	optionalAccessCheck accessCheckFunc,
 	schemaSyncer *schemasync.Syncer,
+	schemaSyncRetryGuard *schemaSyncRetryGuard,
 	dataSource *storepb.DataSource,
 	skipMasking bool,
 ) ([]byte, time.Duration, error) {
@@ -1124,6 +1209,7 @@ func doExport(
 		licenseService,
 		optionalAccessCheck,
 		schemaSyncer,
+		schemaSyncRetryGuard,
 		hasMultipleStatements(statements),
 	)
 	if queryErr != nil {

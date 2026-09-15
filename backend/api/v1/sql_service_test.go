@@ -2,7 +2,9 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/stretchr/testify/require"
@@ -10,8 +12,72 @@ import (
 	"github.com/bytebase/bytebase/backend/common"
 	storepb "github.com/bytebase/bytebase/backend/generated-go/store"
 	v1pb "github.com/bytebase/bytebase/backend/generated-go/v1"
+	parserbase "github.com/bytebase/bytebase/backend/plugin/parser/base"
 	"github.com/bytebase/bytebase/backend/store"
 )
+
+func TestSchemaSyncRetryGuard(t *testing.T) {
+	now := time.Date(2026, time.September, 15, 0, 0, 0, 0, time.UTC)
+	guard := newSchemaSyncRetryGuard(time.Minute, func() time.Time { return now })
+
+	require.True(t, guard.TryStart("workspace-a", "instance-a", "database-a"))
+	require.False(t, guard.TryStart("workspace-a", "instance-a", "database-a"))
+	require.True(t, guard.TryStart("workspace-a", "instance-a", "database-b"))
+
+	guard.Clear("workspace-a", "instance-a", "database-a")
+	require.True(t, guard.TryStart("workspace-a", "instance-a", "database-a"))
+
+	now = now.Add(time.Minute)
+	require.True(t, guard.TryStart("workspace-a", "instance-a", "database-b"))
+}
+
+func TestDatabaseMetadataSyncCandidates(t *testing.T) {
+	instance := &store.InstanceMessage{Metadata: &storepb.Instance{Engine: storepb.Engine_POSTGRES}}
+
+	testCases := []struct {
+		name           string
+		results        []*v1pb.QueryResult
+		spans          []*parserbase.QuerySpan
+		maskingEnabled bool
+		want           []string
+	}{
+		{
+			name: "unresolved columns retry despite execution error",
+			results: []*v1pb.QueryResult{{
+				Error: "query failed",
+			}},
+			spans: []*parserbase.QuerySpan{{
+				UnresolvedColumnsError: &parserbase.UnresolvedColumnsError{
+					Relations: []parserbase.ColumnResource{{Database: "unresolved"}},
+				},
+			}},
+			maskingEnabled: true,
+			want:           []string{"unresolved"},
+		},
+		{
+			name:    "not found retries after successful execution",
+			results: []*v1pb.QueryResult{{}},
+			spans: []*parserbase.QuerySpan{{
+				NotFoundError: errors.New("column not found"),
+				SourceColumns: parserbase.SourceColumnSet{
+					{Database: "missing"}: true,
+				},
+			}},
+			want: []string{"missing"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := databaseMetadataSyncCandidates(tc.results, tc.spans, tc.maskingEnabled, instance)
+			want := make(map[string]bool, len(tc.want))
+			for _, databaseName := range tc.want {
+				want[databaseName] = true
+			}
+			require.Equal(t, want, got)
+		})
+	}
+}
 
 func TestSQLIAMDatabaseResourceUsesCanonicalInstanceScope(t *testing.T) {
 	t.Parallel()
